@@ -23,16 +23,22 @@ import {
 } from "@/components/ui/select";
 import { useResourceMutation } from "@/hooks/use-resource";
 import { apiError } from "@/lib/api";
+import { AssetSelect } from "@/components/shared/asset-select";
+import type { AssetRef } from "@/lib/types";
 
 export interface FieldDef {
   name: string;
   label: string;
-  type?: "text" | "number" | "email" | "textarea" | "select";
+  type?: "text" | "number" | "email" | "textarea" | "select" | "asset";
   required?: boolean;
   placeholder?: string;
   options?: { value: string; label: string }[];
   default?: string | number;
   colSpan?: 1 | 2;
+}
+
+export interface TransformExtras {
+  assets: Record<string, AssetRef | null>;
 }
 
 export function FormDialog({
@@ -53,10 +59,11 @@ export function FormDialog({
   resource: string;
   fields: FieldDef[];
   submitLabel?: string;
-  transform?: (values: Record<string, any>) => Record<string, any>;
+  transform?: (values: Record<string, any>, extras: TransformExtras) => Record<string, any>;
   successMessage?: string;
 }) {
   const { create } = useResourceMutation(resource);
+  const [assetSel, setAssetSel] = React.useState<Record<string, AssetRef | null>>({});
 
   const initial = React.useMemo(() => {
     const obj: Record<string, any> = {};
@@ -69,7 +76,10 @@ export function FormDialog({
   const [values, setValues] = React.useState<Record<string, any>>(initial);
 
   React.useEffect(() => {
-    if (open) setValues(initial);
+    if (open) {
+      setValues(initial);
+      setAssetSel({});
+    }
   }, [open, initial]);
 
   const set = (name: string, value: any) =>
@@ -83,7 +93,7 @@ export function FormDialog({
         return;
       }
     }
-    const payload = transform ? transform(values) : values;
+    const payload = transform ? transform(values, { assets: assetSel }) : values;
     Object.keys(payload).forEach((k) => {
       if (payload[k] === "" || payload[k] === undefined) delete payload[k];
     });
@@ -105,17 +115,31 @@ export function FormDialog({
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
 
-        <form onSubmit={submit} className="grid grid-cols-2 gap-4">
+        <form onSubmit={submit} className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-4 overflow-y-auto scrollbar-thin px-0.5 pb-1 max-h-[58vh]">
           {fields.map((f) => (
             <div
               key={f.name}
-              className={f.colSpan === 2 || f.type === "textarea" ? "col-span-2 space-y-1.5" : "col-span-2 space-y-1.5 sm:col-span-1"}
+              className={
+                f.colSpan === 2 || f.type === "textarea" || f.type === "asset"
+                  ? "col-span-2 space-y-1.5"
+                  : "col-span-2 space-y-1.5 sm:col-span-1"
+              }
             >
               <Label htmlFor={f.name}>
                 {f.label}
                 {f.required && <span className="ml-0.5 text-destructive">*</span>}
               </Label>
-              {f.type === "select" ? (
+              {f.type === "asset" ? (
+                <AssetSelect
+                  value={values[f.name]}
+                  onChange={(asset) => {
+                    set(f.name, asset?._id ?? "");
+                    setAssetSel((s) => ({ ...s, [f.name]: asset }));
+                  }}
+                  placeholder={f.placeholder}
+                />
+              ) : f.type === "select" ? (
                 <Select value={values[f.name]} onValueChange={(v) => set(f.name, v)}>
                   <SelectTrigger id={f.name} className="h-10">
                     <SelectValue placeholder={f.placeholder} />
@@ -150,8 +174,9 @@ export function FormDialog({
               )}
             </div>
           ))}
+          </div>
 
-          <DialogFooter className="col-span-2 mt-2">
+          <DialogFooter className="border-t border-border pt-4">
             <Button
               type="button"
               variant="outline"

@@ -77,7 +77,23 @@ export interface SecurityEvent {
   mitreTactic: string;
   detectionSource: string;
   cveId?: string;
+  targetAsset?: AssetRef | null;
   occurredAt: string;
+}
+
+/** Minimal asset shape returned by the registry /options endpoint and populates. */
+export interface AssetRef {
+  _id: string;
+  assetTag: string;
+  name: string;
+  category: string;
+  criticality: string;
+  environment: string;
+  ipAddress: string;
+  location: string;
+  os: string;
+  status?: string;
+  healthScore?: number;
 }
 
 export interface Incident {
@@ -91,6 +107,7 @@ export interface Incident {
   impact: string;
   category: string;
   affectedServices: string[];
+  affectedAssets?: AssetRef[];
   commanderName?: string;
   detectedAt: string;
   resolvedAt?: string;
@@ -123,6 +140,7 @@ export interface MaintenanceTask {
   type: string;
   status: string;
   priority: "critical" | "high" | "medium" | "low";
+  asset?: AssetRef | string | null;
   assetName?: string;
   assignedTeam: string;
   assigneeName?: string;
@@ -148,6 +166,7 @@ export interface Report {
   score?: number;
   generatedByName?: string;
   fileSize: string;
+  relatedAssets?: AssetRef[];
   createdAt?: string;
 }
 

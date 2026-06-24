@@ -67,6 +67,7 @@ const INCIDENT_FIELDS = [
     default: "partial",
   },
   { name: "commanderName", label: "Incident Commander", placeholder: "Assigned lead", colSpan: 2 as const },
+  { name: "affectedAsset", label: "Affected Asset", type: "asset" as const },
   { name: "summary", label: "Summary", type: "textarea" as const, placeholder: "What is happening and what's affected?" },
 ];
 
@@ -126,12 +127,16 @@ export default function IncidentsPage() {
         submitLabel="Declare Incident"
         successMessage="Incident declared"
         fields={INCIDENT_FIELDS}
-        transform={(v) => ({
-          ...v,
-          incidentId: `INC-${Date.now().toString().slice(-6)}`,
-          status: "detected",
-          detectedAt: new Date().toISOString(),
-        })}
+        transform={(v, { assets }) => {
+          const { affectedAsset, ...rest } = v;
+          return {
+            ...rest,
+            affectedAssets: assets.affectedAsset ? [assets.affectedAsset._id] : [],
+            incidentId: `INC-${Date.now().toString().slice(-6)}`,
+            status: "detected",
+            detectedAt: new Date().toISOString(),
+          };
+        }}
       />
 
       <div className="rounded-xl border border-border bg-card shadow-soft">
@@ -269,6 +274,33 @@ function IncidentDetail({
                     <span key={s} className="rounded-md bg-secondary px-2 py-0.5 text-xs font-medium">
                       {s}
                     </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {incident.affectedAssets && incident.affectedAssets.length > 0 && (
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                  Affected Assets · live from registry
+                </p>
+                <div className="space-y-2">
+                  {incident.affectedAssets.map((a) => (
+                    <div
+                      key={a._id}
+                      className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-2.5"
+                    >
+                      <span className="grid size-8 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+                        <Boxes className="size-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{a.name}</div>
+                        <div className="truncate font-mono text-[11px] text-muted-foreground">
+                          {a.assetTag} · {titleCase(a.category)} · {a.ipAddress} · {a.location}
+                        </div>
+                      </div>
+                      <StatusBadge value={a.criticality} dot={false} />
+                    </div>
                   ))}
                 </div>
               </div>

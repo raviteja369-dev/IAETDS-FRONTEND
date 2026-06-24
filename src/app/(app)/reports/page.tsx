@@ -49,6 +49,7 @@ const REPORT_FIELDS = [
     options: ["Last 30 days", "Last 90 days", "Q2 2026", "June 2026"].map((v) => ({ value: v, label: v })),
   },
   { name: "framework", label: "Framework (optional)", placeholder: "SOC 2 / GDPR / PCI-DSS" },
+  { name: "scopedAsset", label: "Scope to Asset (optional)", type: "asset" as const },
   { name: "description", label: "Description", type: "textarea" as const, placeholder: "What does this report cover?" },
 ];
 
@@ -101,12 +102,16 @@ export default function ReportsPage() {
         submitLabel="Generate"
         successMessage="Report generated"
         fields={REPORT_FIELDS}
-        transform={(v) => ({
-          ...v,
-          reportId: `RPT-${Date.now().toString().slice(-6)}`,
-          status: "generated",
-          fileSize: `${(Math.random() * 4 + 0.6).toFixed(1)} MB`,
-        })}
+        transform={(v, { assets }) => {
+          const { scopedAsset, ...rest } = v;
+          return {
+            ...rest,
+            relatedAssets: assets.scopedAsset ? [assets.scopedAsset._id] : [],
+            reportId: `RPT-${Date.now().toString().slice(-6)}`,
+            status: "generated",
+            fileSize: `${(Math.random() * 4 + 0.6).toFixed(1)} MB`,
+          };
+        }}
       />
 
       <Toolbar
@@ -158,6 +163,12 @@ export default function ReportsPage() {
                   )}
                   <span className="uppercase">{r.format}</span>
                   <span>{r.fileSize}</span>
+                  {r.relatedAssets && r.relatedAssets.length > 0 && (
+                    <span className="inline-flex items-center gap-1 font-medium text-primary">
+                      <Boxes className="size-3" /> {r.relatedAssets.length} asset
+                      {r.relatedAssets.length > 1 ? "s" : ""}
+                    </span>
+                  )}
                 </div>
 
                 {typeof r.score === "number" && (

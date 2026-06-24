@@ -48,7 +48,7 @@ const WO_FIELDS = [
     options: ["Infrastructure Ops", "Network Team", "Database Team", "Security"].map((v) => ({ value: v, label: v })),
   },
   { name: "assigneeName", label: "Assignee", placeholder: "Engineer name" },
-  { name: "assetName", label: "Asset", placeholder: "Related asset name", colSpan: 2 as const },
+  { name: "asset", label: "Linked Asset", type: "asset" as const, required: true },
   { name: "estimatedHours", label: "Estimated Hours", type: "number" as const, default: 2 },
   {
     name: "recurrence",
@@ -124,8 +124,10 @@ export default function MaintenancePage() {
         submitLabel="Create Work Order"
         successMessage="Work order created"
         fields={WO_FIELDS}
-        transform={(v) => ({
+        transform={(v, { assets }) => ({
           ...v,
+          asset: assets.asset?._id,
+          assetName: assets.asset?.name,
           workOrderId: `WO-${Date.now().toString().slice(-6)}`,
           status: "scheduled",
           progress: 0,
@@ -189,7 +191,10 @@ export default function MaintenancePage() {
                         <div>
                           <div className="font-medium">{t.title}</div>
                           <div className="font-mono text-xs text-muted-foreground">
-                            {t.workOrderId} · {t.assetName}
+                            {t.workOrderId} ·{" "}
+                            {typeof t.asset === "object" && t.asset
+                              ? `${t.asset.assetTag} ${t.asset.name}`
+                              : t.assetName || "Unlinked"}
                           </div>
                         </div>
                       </div>

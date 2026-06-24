@@ -206,6 +206,12 @@ export default function SecurityPage() {
                       <div className="font-medium">{e.title}</div>
                       <div className="font-mono text-xs text-muted-foreground">
                         {e.eventId} · {e.detectionSource}
+                        {e.targetAsset && (
+                          <>
+                            {" · "}
+                            <span className="text-primary">{e.targetAsset.name}</span>
+                          </>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-sm">{titleCase(e.type)}</TableCell>
