@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FormDialog } from "@/components/shared/form-dialog";
 import { exportToCsv } from "@/lib/export";
+import { buildReportDataset } from "@/lib/report-export";
 import { formatDate, titleCase } from "@/lib/utils";
 import {
   FileBarChart,
@@ -74,7 +75,33 @@ export default function ReportsPage() {
   const [search, setSearch] = React.useState("");
   const [filters, setFilters] = React.useState<Record<string, string>>({});
   const [createOpen, setCreateOpen] = React.useState(false);
+  const [exportingId, setExportingId] = React.useState<string | null>(null);
   const debounced = useDebounce(search);
+
+  const handleExport = async (r: Report) => {
+    setExportingId(r._id);
+    const toastId = toast.loading(`Compiling ${r.name}…`);
+    try {
+      const { rows, columns, preamble } = await buildReportDataset(r);
+      exportToCsv(
+        `${r.reportId}-${r.name}`.replace(/\s+/g, "-"),
+        rows,
+        columns,
+        preamble,
+      );
+      toast.success("Report exported", {
+        id: toastId,
+        description: `${r.name} — ${rows.length} record${rows.length === 1 ? "" : "s"} downloaded.`,
+      });
+    } catch {
+      toast.error("Export failed", {
+        id: toastId,
+        description: "Could not compile report data. Please try again.",
+      });
+    } finally {
+      setExportingId(null);
+    }
+  };
 
   const { data, isLoading } = useResourceList<Report>("reports", {
     limit: 50,
@@ -193,26 +220,11 @@ export default function ReportsPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => {
-                      exportToCsv(`${r.reportId}-${r.name}`.replace(/\s+/g, "-"), [
-                        {
-                          reportId: r.reportId,
-                          name: r.name,
-                          type: r.type,
-                          framework: r.framework ?? "",
-                          period: r.period,
-                          score: r.score ?? "",
-                          status: r.status,
-                          generatedBy: r.generatedByName ?? "",
-                          generatedAt: r.createdAt ?? "",
-                        },
-                      ]);
-                      toast.success("Report exported", {
-                        description: `${r.name} downloaded.`,
-                      });
-                    }}
+                    disabled={exportingId === r._id}
+                    onClick={() => handleExport(r)}
                   >
-                    <Download className="size-4" /> Export
+                    <Download className="size-4" />
+                    {exportingId === r._id ? "Exporting…" : "Export"}
                   </Button>
                 </div>
               </motion.div>

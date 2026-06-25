@@ -3,12 +3,11 @@ export function exportToCsv(
   filename: string,
   rows: Record<string, any>[],
   columns?: { key: string; label: string }[],
+  preamble?: [string, any][],
 ) {
-  if (!rows || rows.length === 0) return;
-
-  const cols =
-    columns ??
-    Object.keys(rows[0]).map((k) => ({ key: k, label: k }));
+  const hasRows = Array.isArray(rows) && rows.length > 0;
+  const hasPreamble = Array.isArray(preamble) && preamble.length > 0;
+  if (!hasRows && !hasPreamble) return;
 
   const escape = (val: any) => {
     if (val === null || val === undefined) return "";
@@ -16,11 +15,27 @@ export function exportToCsv(
     return `"${s.replace(/"/g, '""')}"`;
   };
 
-  const header = cols.map((c) => escape(c.label)).join(",");
-  const body = rows
-    .map((row) => cols.map((c) => escape(getValue(row, c.key))).join(","))
-    .join("\n");
-  const csv = `${header}\n${body}`;
+  const sections: string[] = [];
+
+  if (hasPreamble) {
+    sections.push(
+      preamble!.map(([k, v]) => `${escape(k)},${escape(v)}`).join("\n"),
+    );
+  }
+
+  if (hasRows) {
+    const cols =
+      columns ?? Object.keys(rows[0]).map((k) => ({ key: k, label: k }));
+    const header = cols.map((c) => escape(c.label)).join(",");
+    const body = rows
+      .map((row) => cols.map((c) => escape(getValue(row, c.key))).join(","))
+      .join("\n");
+    sections.push(`${header}\n${body}`);
+  } else if (hasPreamble) {
+    sections.push("No records matched this report's scope.");
+  }
+
+  const csv = sections.join("\n\n");
 
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
