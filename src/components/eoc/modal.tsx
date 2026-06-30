@@ -31,31 +31,39 @@ export function Modal({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[95] bg-black/50 backdrop-blur-sm"
+                className="fixed inset-0 z-[95] bg-black/60 backdrop-blur-sm"
               />
             </Dialog.Overlay>
             <Dialog.Content asChild aria-describedby={undefined}>
-              <motion.div
-                initial={{ opacity: 0, scale: 0.96, y: 12 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.97, y: 8 }}
-                transition={{ type: "spring", stiffness: 360, damping: 30 }}
-                className={cn(
-                  "fixed left-1/2 top-1/2 z-[96] flex w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl border border-eoc-border bg-eoc-surface shadow-2xl",
-                  width,
-                )}
+              <div
+                className="fixed inset-0 z-[96] flex items-center justify-center overflow-y-auto p-4"
+                onMouseDown={(e) => {
+                  if (e.target === e.currentTarget) onOpenChange(false);
+                }}
               >
-                <div className="flex items-start justify-between gap-4 border-b border-eoc-border p-5">
-                  <div>
-                    <Dialog.Title className="text-base font-semibold text-eoc-fg">{title}</Dialog.Title>
-                    {description && <p className="mt-1 text-xs text-eoc-muted">{description}</p>}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.97, y: 8 }}
+                  transition={{ type: "spring", stiffness: 360, damping: 30 }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  className={cn(
+                    "my-auto flex max-h-[90vh] w-full flex-col overflow-hidden rounded-2xl border border-eoc-border bg-eoc-surface shadow-2xl",
+                    width,
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-4 border-b border-eoc-border p-5">
+                    <div>
+                      <Dialog.Title className="text-base font-semibold text-eoc-fg">{title}</Dialog.Title>
+                      {description && <p className="mt-1 text-xs text-eoc-muted">{description}</p>}
+                    </div>
+                    <Dialog.Close className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-eoc-muted transition-colors hover:bg-white/5 hover:text-eoc-fg">
+                      <X className="h-4 w-4" />
+                    </Dialog.Close>
                   </div>
-                  <Dialog.Close className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-eoc-muted transition-colors hover:bg-white/5 hover:text-eoc-fg">
-                    <X className="h-4 w-4" />
-                  </Dialog.Close>
-                </div>
-                {children}
-              </motion.div>
+                  <div className="overflow-y-auto">{children}</div>
+                </motion.div>
+              </div>
             </Dialog.Content>
           </Dialog.Portal>
         )}
