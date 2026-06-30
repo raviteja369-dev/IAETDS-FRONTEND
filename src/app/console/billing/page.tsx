@@ -25,6 +25,46 @@ const invTone: Record<string, Tone> = { paid: "success", due: "info", overdue: "
 const subTone: Record<string, Tone> = { active: "success", trialing: "info", past_due: "danger", paused: "warning", canceled: "neutral" };
 const txTone: Record<string, Tone> = { succeeded: "success", pending: "warning", failed: "danger" };
 
+type PmType = "UPI" | "Card" | "Net banking" | "Wallet";
+interface PmField {
+  key: string;
+  label: string;
+  placeholder?: string;
+  options?: string[];
+  type?: string;
+  maxLength?: number;
+  validate?: (v: string) => string | null;
+}
+
+const PM_FIELDS: Record<PmType, PmField[]> = {
+  UPI: [
+    { key: "vpa", label: "UPI ID", placeholder: "name@bank", validate: (v) => (/^[\w.\-]{2,}@[a-zA-Z]{2,}$/.test(v) ? null : "Enter a valid UPI ID (e.g. name@okhdfc)") },
+  ],
+  Card: [
+    { key: "number", label: "Card number", placeholder: "1234 5678 9012 3456", maxLength: 19, validate: (v) => (v.replace(/\s/g, "").length >= 12 ? null : "Enter a valid card number") },
+    { key: "name", label: "Name on card", placeholder: "As printed on card" },
+    { key: "expiry", label: "Expiry (MM/YY)", placeholder: "MM/YY", maxLength: 5, validate: (v) => (/^(0[1-9]|1[0-2])\/\d{2}$/.test(v) ? null : "Enter expiry as MM/YY") },
+    { key: "cvv", label: "CVV", placeholder: "•••", type: "password", maxLength: 4, validate: (v) => (/^\d{3,4}$/.test(v) ? null : "Enter a valid CVV") },
+  ],
+  "Net banking": [
+    { key: "bank", label: "Bank", options: ["HDFC Bank", "ICICI Bank", "State Bank of India", "Axis Bank", "Kotak Mahindra Bank", "Punjab National Bank", "Yes Bank", "Bank of Baroda"] },
+    { key: "account", label: "Account number", placeholder: "Your account number", validate: (v) => (/^\d{6,18}$/.test(v) ? null : "Enter a valid account number") },
+    { key: "ifsc", label: "IFSC code", placeholder: "e.g. HDFC0001234", maxLength: 11, validate: (v) => (/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(v) ? null : "Enter a valid 11-character IFSC code") },
+  ],
+  Wallet: [
+    { key: "provider", label: "Wallet provider", options: ["Paytm", "PhonePe", "Amazon Pay", "Mobikwik", "Freecharge"] },
+    { key: "mobile", label: "Linked mobile", placeholder: "10-digit mobile number", maxLength: 10, validate: (v) => (/^[6-9]\d{9}$/.test(v) ? null : "Enter a valid 10-digit mobile number") },
+  ],
+};
+
+function buildPmDefaults(type: PmType): Record<string, string> {
+  const d: Record<string, string> = {};
+  PM_FIELDS[type].forEach((f) => {
+    if (f.options) d[f.key] = f.options[0];
+  });
+  return d;
+}
+
 export default function BillingPage() {
   const [tab, setTab] = React.useState<"invoices" | "transactions" | "subscriptions">("invoices");
   const invoices = useEocStore((s) => s.invoices);
@@ -41,24 +81,40 @@ export default function BillingPage() {
   };
 
   const [pmOpen, setPmOpen] = React.useState(false);
-  const [pmType, setPmType] = React.useState("UPI");
-  const [pmDetail, setPmDetail] = React.useState("");
+  const [pmType, setPmType] = React.useState<PmType>("UPI");
+  const [pm, setPm] = React.useState<Record<string, string>>(() => buildPmDefaults("UPI"));
 
-  const pmPlaceholder: Record<string, string> = {
-    UPI: "name@bank",
-    Card: "Card number",
-    "Net banking": "Bank name",
-    Wallet: "Wallet provider",
+  const changePmType = (type: PmType) => {
+    setPmType(type);
+    setPm(buildPmDefaults(type));
   };
+
+  const setPmField = (key: string, value: string) => setPm((prev) => ({ ...prev, [key]: value }));
 
   const addPaymentMethod = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pmDetail.trim()) {
-      toast.error("Please enter your payment details");
-      return;
+    for (const f of PM_FIELDS[pmType]) {
+      const value = (pm[f.key] ?? "").trim();
+      if (!value) {
+        toast.error(`Please enter ${f.label}`);
+        return;
+      }
+      const err = f.validate?.(value);
+      if (err) {
+        toast.error(err);
+        return;
+      }
     }
-    toast.success("Payment method added", { description: `${pmType} · ${pmDetail.trim()}` });
-    setPmDetail("");
+    const summary =
+      pmType === "Card"
+        ? `Card •• ${(pm.number ?? "").replace(/\s/g, "").slice(-4)}`
+        : pmType === "UPI"
+          ? pm.vpa
+          : pmType === "Net banking"
+            ? `${pm.bank} •• ${(pm.account ?? "").slice(-4)}`
+            : `${pm.provider} · ${pm.mobile}`;
+    toast.success("Payment method added", { description: `${pmType} · ${summary}` });
+    setPm(buildPmDefaults(pmType));
     setPmOpen(false);
   };
 
@@ -79,16 +135,37 @@ export default function BillingPage() {
       <Modal open={pmOpen} onOpenChange={setPmOpen} title="Add payment method" description="Securely save a method for future payments.">
         <form onSubmit={addPaymentMethod} className="space-y-4 p-5">
           <Field label="Method type" htmlFor="pm-type">
-            <SelectInput id="pm-type" value={pmType} onChange={(e) => { setPmType(e.target.value); setPmDetail(""); }}>
-              <option>UPI</option>
-              <option>Card</option>
-              <option>Net banking</option>
-              <option>Wallet</option>
+            <SelectInput id="pm-type" value={pmType} onChange={(e) => changePmType(e.target.value as PmType)}>
+              <option value="UPI">UPI</option>
+              <option value="Card">Card</option>
+              <option value="Net banking">Net banking</option>
+              <option value="Wallet">Wallet</option>
             </SelectInput>
           </Field>
-          <Field label={pmType === "Card" ? "Card number" : pmType === "UPI" ? "UPI ID" : "Details"} htmlFor="pm-detail">
-            <TextInput id="pm-detail" value={pmDetail} onChange={(e) => setPmDetail(e.target.value)} placeholder={pmPlaceholder[pmType]} autoFocus />
-          </Field>
+
+          {PM_FIELDS[pmType].map((f, i) => (
+            <Field key={f.key} label={f.label} htmlFor={`pm-${f.key}`}>
+              {f.options ? (
+                <SelectInput id={`pm-${f.key}`} value={pm[f.key] ?? f.options[0]} onChange={(e) => setPmField(f.key, e.target.value)}>
+                  {f.options.map((o) => (
+                    <option key={o} value={o}>{o}</option>
+                  ))}
+                </SelectInput>
+              ) : (
+                <TextInput
+                  id={`pm-${f.key}`}
+                  type={f.type}
+                  inputMode={f.key === "mobile" || f.key === "account" || f.key === "cvv" || f.key === "number" ? "numeric" : undefined}
+                  maxLength={f.maxLength}
+                  value={pm[f.key] ?? ""}
+                  onChange={(e) => setPmField(f.key, e.target.value)}
+                  placeholder={f.placeholder}
+                  autoFocus={i === 0}
+                />
+              )}
+            </Field>
+          ))}
+
           <div className="flex justify-end gap-2 pt-1">
             <EButton type="button" variant="secondary" onClick={() => setPmOpen(false)}>Cancel</EButton>
             <EButton type="submit" variant="primary">Save method</EButton>
