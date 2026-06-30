@@ -14,6 +14,7 @@ import {
 import { AreaTrend } from "@/components/eoc/charts";
 import { componentHealth, healthSeries } from "@/lib/eoc/data";
 import { useEocStore } from "@/lib/eoc/store";
+import { Modal, Field, TextInput, SelectInput } from "@/components/eoc/modal";
 import { formatCurrency } from "@/lib/eoc/format";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +35,29 @@ export default function MaintenancePage() {
   const openCount = maintenanceTasks.filter((t) => t.status !== "completed").length;
   const predictiveCount = maintenanceTasks.filter((t) => t.type === "predictive" && t.status !== "completed").length;
 
+  const [open, setOpen] = React.useState(false);
+  const [title, setTitle] = React.useState("");
+  const [app, setApp] = React.useState("");
+  const [type, setType] = React.useState<"scheduled" | "predictive" | "patch" | "upgrade" | "backup">("scheduled");
+  const [risk, setRisk] = React.useState<"low" | "medium" | "high" | "critical">("low");
+  const [windowStr, setWindowStr] = React.useState("");
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !app.trim()) {
+      toast.error("Please fill in the task title and application");
+      return;
+    }
+    scheduleTask({ title: title.trim(), app: app.trim(), type, risk, window: windowStr.trim() || undefined });
+    toast.success("Maintenance scheduled", { description: `${title.trim()} added to the queue.` });
+    setTitle("");
+    setApp("");
+    setWindowStr("");
+    setType("scheduled");
+    setRisk("low");
+    setOpen(false);
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -43,18 +67,49 @@ export default function MaintenancePage() {
         actions={
           <>
             <EButton variant="secondary" onClick={() => toast.info("Maintenance calendar", { description: "All scheduled and predictive windows for the next 30 days." })}><CalendarClock className="h-4 w-4" /> Calendar</EButton>
-            <EButton
-              variant="primary"
-              onClick={() => {
-                scheduleTask({ title: "Ad-hoc maintenance window", app: "Platform", type: "scheduled", risk: "low" });
-                toast.success("Maintenance scheduled", { description: "A new window was added to the queue." });
-              }}
-            >
+            <EButton variant="primary" onClick={() => setOpen(true)}>
               <Wrench className="h-4 w-4" /> Schedule
             </EButton>
           </>
         }
       />
+
+      <Modal open={open} onOpenChange={setOpen} title="Schedule maintenance" description="Plan a maintenance window for an application." width="max-w-lg">
+        <form onSubmit={submit} className="space-y-4 p-5">
+          <Field label="Task title" htmlFor="mt-title">
+            <TextInput id="mt-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Apply security patch 6.1.0" autoFocus />
+          </Field>
+          <Field label="Application" htmlFor="mt-app">
+            <TextInput id="mt-app" value={app} onChange={(e) => setApp(e.target.value)} placeholder="e.g. Servora ITSM" />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Type" htmlFor="mt-type">
+              <SelectInput id="mt-type" value={type} onChange={(e) => setType(e.target.value as typeof type)}>
+                <option value="scheduled">Scheduled</option>
+                <option value="predictive">Predictive</option>
+                <option value="patch">Patch</option>
+                <option value="upgrade">Upgrade</option>
+                <option value="backup">Backup</option>
+              </SelectInput>
+            </Field>
+            <Field label="Risk" htmlFor="mt-risk">
+              <SelectInput id="mt-risk" value={risk} onChange={(e) => setRisk(e.target.value as typeof risk)}>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </SelectInput>
+            </Field>
+          </div>
+          <Field label="Window" htmlFor="mt-window" hint="Optional. Defaults to today.">
+            <TextInput id="mt-window" value={windowStr} onChange={(e) => setWindowStr(e.target.value)} placeholder="e.g. Jul 04, 02:00–04:00" />
+          </Field>
+          <div className="flex justify-end gap-2 pt-1">
+            <EButton type="button" variant="secondary" onClick={() => setOpen(false)}>Cancel</EButton>
+            <EButton type="submit" variant="primary">Schedule</EButton>
+          </div>
+        </form>
+      </Modal>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Mini label="Open tasks" value={String(openCount)} tone="info" />

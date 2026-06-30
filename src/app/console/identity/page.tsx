@@ -5,6 +5,7 @@ import { Check, KeyRound, Search, ShieldCheck, UserPlus, X } from "lucide-react"
 import { toast } from "sonner";
 import { PageHeader, EButton } from "@/components/eoc/page-header";
 import { SectionHeader, StatusPill, Surface, type Tone } from "@/components/eoc/primitives";
+import { Modal, Field, TextInput } from "@/components/eoc/modal";
 import { accessMembers } from "@/lib/eoc/data";
 import type { AccessMember } from "@/lib/eoc/types";
 import { cn } from "@/lib/utils";
@@ -16,20 +17,39 @@ export default function IdentityPage() {
   const [members, setMembers] = React.useState<AccessMember[]>(accessMembers);
   const filtered = members.filter((m) => m.name.toLowerCase().includes(query.toLowerCase()) || m.email.toLowerCase().includes(query.toLowerCase()) || m.role.toLowerCase().includes(query.toLowerCase()));
 
-  const invite = () => {
-    const n = members.length + 1;
+  const [open, setOpen] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [role, setRole] = React.useState("");
+  const [department, setDepartment] = React.useState("");
+
+  const invite = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !email.trim()) {
+      toast.error("Please enter the member's name and email");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
     const member: AccessMember = {
       id: `u-${Date.now().toString(36)}`,
-      name: `New Member ${n}`,
-      email: `member${n}@northwind.io`,
-      role: "Employee",
-      department: "Unassigned",
+      name: name.trim(),
+      email: email.trim(),
+      role: role.trim() || "Employee",
+      department: department.trim() || "Unassigned",
       status: "invited",
       mfa: false,
       lastActive: "Pending",
     };
     setMembers((prev) => [member, ...prev]);
     toast.success("Invitation sent", { description: `${member.email} has been invited.` });
+    setName("");
+    setEmail("");
+    setRole("");
+    setDepartment("");
+    setOpen(false);
   };
 
   const setStatus = (id: string, status: AccessMember["status"]) => {
@@ -46,10 +66,35 @@ export default function IdentityPage() {
         actions={
           <>
             <EButton variant="secondary" onClick={() => toast.info("SSO & MFA", { description: "SAML/OIDC SSO enforced · MFA required for all admins." })}><ShieldCheck className="h-4 w-4" /> SSO & MFA</EButton>
-            <EButton variant="primary" onClick={invite}><UserPlus className="h-4 w-4" /> Invite member</EButton>
+            <EButton variant="primary" onClick={() => setOpen(true)}><UserPlus className="h-4 w-4" /> Invite member</EButton>
           </>
         }
       />
+
+      <Modal open={open} onOpenChange={setOpen} title="Invite member" description="Send an invitation to join this workspace." width="max-w-lg">
+        <form onSubmit={invite} className="space-y-4 p-5">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Full name" htmlFor="m-name">
+              <TextInput id="m-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Aarav Mehta" autoFocus />
+            </Field>
+            <Field label="Email" htmlFor="m-email">
+              <TextInput id="m-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Role" htmlFor="m-role" hint="Defaults to Employee.">
+              <TextInput id="m-role" value={role} onChange={(e) => setRole(e.target.value)} placeholder="e.g. DevOps Lead" />
+            </Field>
+            <Field label="Department" htmlFor="m-dept" hint="Defaults to Unassigned.">
+              <TextInput id="m-dept" value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="e.g. Engineering" />
+            </Field>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <EButton type="button" variant="secondary" onClick={() => setOpen(false)}>Cancel</EButton>
+            <EButton type="submit" variant="primary">Send invitation</EButton>
+          </div>
+        </form>
+      </Modal>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat label="Members" value="1,284" />

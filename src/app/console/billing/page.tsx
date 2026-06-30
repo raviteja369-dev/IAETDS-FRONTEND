@@ -15,6 +15,7 @@ import {
   type Tone,
 } from "@/components/eoc/primitives";
 import { AreaTrend } from "@/components/eoc/charts";
+import { Modal, Field, TextInput, SelectInput } from "@/components/eoc/modal";
 import { costSeries, usageMetrics } from "@/lib/eoc/data";
 import { useEocStore } from "@/lib/eoc/store";
 import { formatCurrency, formatNumber } from "@/lib/eoc/format";
@@ -39,6 +40,28 @@ export default function BillingPage() {
     toast.success(`${number} paid`, { description: "A receipt has been emailed to billing." });
   };
 
+  const [pmOpen, setPmOpen] = React.useState(false);
+  const [pmType, setPmType] = React.useState("UPI");
+  const [pmDetail, setPmDetail] = React.useState("");
+
+  const pmPlaceholder: Record<string, string> = {
+    UPI: "name@bank",
+    Card: "Card number",
+    "Net banking": "Bank name",
+    Wallet: "Wallet provider",
+  };
+
+  const addPaymentMethod = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pmDetail.trim()) {
+      toast.error("Please enter your payment details");
+      return;
+    }
+    toast.success("Payment method added", { description: `${pmType} · ${pmDetail.trim()}` });
+    setPmDetail("");
+    setPmOpen(false);
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -48,10 +71,30 @@ export default function BillingPage() {
         actions={
           <>
             <EButton variant="secondary" onClick={() => toast.success("Statement downloaded", { description: "Trailing 12 months exported as PDF." })}><Download className="h-4 w-4" /> Statements</EButton>
-            <EButton variant="primary" onClick={() => toast.success("Payment method added", { description: "UPI / card saved to your wallet." })}><Plus className="h-4 w-4" /> Add payment method</EButton>
+            <EButton variant="primary" onClick={() => setPmOpen(true)}><Plus className="h-4 w-4" /> Add payment method</EButton>
           </>
         }
       />
+
+      <Modal open={pmOpen} onOpenChange={setPmOpen} title="Add payment method" description="Securely save a method for future payments.">
+        <form onSubmit={addPaymentMethod} className="space-y-4 p-5">
+          <Field label="Method type" htmlFor="pm-type">
+            <SelectInput id="pm-type" value={pmType} onChange={(e) => { setPmType(e.target.value); setPmDetail(""); }}>
+              <option>UPI</option>
+              <option>Card</option>
+              <option>Net banking</option>
+              <option>Wallet</option>
+            </SelectInput>
+          </Field>
+          <Field label={pmType === "Card" ? "Card number" : pmType === "UPI" ? "UPI ID" : "Details"} htmlFor="pm-detail">
+            <TextInput id="pm-detail" value={pmDetail} onChange={(e) => setPmDetail(e.target.value)} placeholder={pmPlaceholder[pmType]} autoFocus />
+          </Field>
+          <div className="flex justify-end gap-2 pt-1">
+            <EButton type="button" variant="secondary" onClick={() => setPmOpen(false)}>Cancel</EButton>
+            <EButton type="submit" variant="primary">Save method</EButton>
+          </div>
+        </form>
+      </Modal>
 
       {/* Plan + wallet + spend */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

@@ -12,6 +12,7 @@ import {
   type Tone,
 } from "@/components/eoc/primitives";
 import { BarSeries } from "@/components/eoc/charts";
+import { Modal, Field, TextInput } from "@/components/eoc/modal";
 
 type Flow = { name: string; trigger: string; runs: string; success: number; status: string };
 
@@ -53,10 +54,21 @@ export default function AutomationPage() {
       }),
     );
 
-  const addFlow = () => {
-    const flow: Flow = { name: `New workflow ${flows.length + 1}`, trigger: "Manual trigger", runs: "0", success: 100, status: "active" };
-    setFlows((prev) => [flow, ...prev]);
-    toast.success("Workflow created", { description: "Configure triggers and actions to go live." });
+  const [open, setOpen] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [trigger, setTrigger] = React.useState("");
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !trigger.trim()) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+    setFlows((prev) => [{ name: name.trim(), trigger: trigger.trim(), runs: "0", success: 100, status: "active" }, ...prev]);
+    toast.success("Workflow created", { description: `${name.trim()} is now active.` });
+    setName("");
+    setTrigger("");
+    setOpen(false);
   };
 
   return (
@@ -65,8 +77,23 @@ export default function AutomationPage() {
         eyebrow="Workflow engine"
         title="Automation"
         description="Trigger-based workflows, approvals and AI actions that run your operations automatically — with full execution history."
-        actions={<EButton variant="primary" onClick={addFlow}><Plus className="h-4 w-4" /> New workflow</EButton>}
+        actions={<EButton variant="primary" onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> New workflow</EButton>}
       />
+
+      <Modal open={open} onOpenChange={setOpen} title="New workflow" description="Define what triggers this workflow.">
+        <form onSubmit={submit} className="space-y-4 p-5">
+          <Field label="Workflow name" htmlFor="wf-name">
+            <TextInput id="wf-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Auto-scale on traffic spike" autoFocus />
+          </Field>
+          <Field label="Trigger" htmlFor="wf-trigger" hint="The condition or event that starts this workflow.">
+            <TextInput id="wf-trigger" value={trigger} onChange={(e) => setTrigger(e.target.value)} placeholder="e.g. CPU > 75%" />
+          </Field>
+          <div className="flex justify-end gap-2 pt-1">
+            <EButton type="button" variant="secondary" onClick={() => setOpen(false)}>Cancel</EButton>
+            <EButton type="submit" variant="primary">Create workflow</EButton>
+          </div>
+        </form>
+      </Modal>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat label="Active workflows" value="24" tone="info" />

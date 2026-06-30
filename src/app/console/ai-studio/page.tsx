@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Bot, KeyRound, Plus, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader, EButton } from "@/components/eoc/page-header";
 import {
   IconTile,
@@ -11,10 +12,13 @@ import {
   Surface,
 } from "@/components/eoc/primitives";
 import { AreaTrend } from "@/components/eoc/charts";
+import { Modal, Field, TextInput, SelectInput } from "@/components/eoc/modal";
 import { costSeries } from "@/lib/eoc/data";
 import { formatCurrency } from "@/lib/eoc/format";
 
-const agents = [
+type Agent = { name: string; model: string; calls: string; success: number; status: string };
+
+const initialAgents: Agent[] = [
   { name: "Support Resolver", model: "GPT-4o", calls: "184k", success: 97, status: "active" },
   { name: "Finance Analyst", model: "Claude 3.5", calls: "62k", success: 99, status: "active" },
   { name: "Ops Copilot", model: "GPT-4o", calls: "210k", success: 98, status: "active" },
@@ -30,6 +34,24 @@ const models = [
 ];
 
 export default function AIStudioPage() {
+  const [agents, setAgents] = React.useState<Agent[]>(initialAgents);
+  const [open, setOpen] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [model, setModel] = React.useState("GPT-4o");
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      toast.error("Please enter an agent name");
+      return;
+    }
+    setAgents((prev) => [{ name: name.trim(), model, calls: "0", success: 100, status: "active" }, ...prev]);
+    toast.success("Agent created", { description: `${name.trim()} (${model}) is now active.` });
+    setName("");
+    setModel("GPT-4o");
+    setOpen(false);
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -38,11 +60,31 @@ export default function AIStudioPage() {
         description="Build, deploy and govern AI agents, prompts, knowledge sources and workflows from a single intelligent platform."
         actions={
           <>
-            <EButton variant="secondary"><KeyRound className="h-4 w-4" /> API keys</EButton>
-            <EButton variant="primary"><Plus className="h-4 w-4" /> New agent</EButton>
+            <EButton variant="secondary" onClick={() => toast.info("API keys", { description: "Manage and rotate workspace API keys." })}><KeyRound className="h-4 w-4" /> API keys</EButton>
+            <EButton variant="primary" onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> New agent</EButton>
           </>
         }
       />
+
+      <Modal open={open} onOpenChange={setOpen} title="New agent" description="Deploy a new AI agent to your workspace.">
+        <form onSubmit={submit} className="space-y-4 p-5">
+          <Field label="Agent name" htmlFor="ag-name">
+            <TextInput id="ag-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Contract Reviewer" autoFocus />
+          </Field>
+          <Field label="Model" htmlFor="ag-model">
+            <SelectInput id="ag-model" value={model} onChange={(e) => setModel(e.target.value)}>
+              <option>GPT-4o</option>
+              <option>GPT-4o-mini</option>
+              <option>Claude 3.5</option>
+              <option>Llama 3.1</option>
+            </SelectInput>
+          </Field>
+          <div className="flex justify-end gap-2 pt-1">
+            <EButton type="button" variant="secondary" onClick={() => setOpen(false)}>Cancel</EButton>
+            <EButton type="submit" variant="primary">Create agent</EButton>
+          </div>
+        </form>
+      </Modal>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat label="Active agents" value="9" />

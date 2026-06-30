@@ -2,9 +2,11 @@
 
 import * as React from "react";
 import { Database, FileText, HardDrive, Image, Archive, BookOpen } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader, EButton } from "@/components/eoc/page-header";
 import { IconTile, ProgressBar, ScoreRing, SectionHeader, Surface } from "@/components/eoc/primitives";
 import { AreaTrend, DonutChart } from "@/components/eoc/charts";
+import { Modal, Field, SelectInput } from "@/components/eoc/modal";
 
 const buckets = [
   { name: "Documents", icon: FileText, size: "1.4 TB", pct: 33, accent: "#4F7CFF" },
@@ -22,14 +24,40 @@ const growth = Array.from({ length: 12 }, (_, i) => ({
 }));
 
 export default function StoragePage() {
+  const [open, setOpen] = React.useState(false);
+  const [amount, setAmount] = React.useState("1");
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    toast.success("Capacity added", { description: `${amount} TB provisioned to your workspace.` });
+    setOpen(false);
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Enterprise storage"
         title="Storage"
         description="Documents, media, backups and knowledge files with encryption, retention policies and forecasting."
-        actions={<EButton variant="secondary"><HardDrive className="h-4 w-4" /> Retention policies</EButton>}
+        actions={<EButton variant="secondary" onClick={() => toast.info("Retention policies", { description: "Lifecycle and retention rules per bucket." })}><HardDrive className="h-4 w-4" /> Retention policies</EButton>}
       />
+
+      <Modal open={open} onOpenChange={setOpen} title="Add capacity" description="Provision additional storage for your workspace.">
+        <form onSubmit={submit} className="space-y-4 p-5">
+          <Field label="Additional capacity" htmlFor="cap-amt">
+            <SelectInput id="cap-amt" value={amount} onChange={(e) => setAmount(e.target.value)}>
+              <option value="1">1 TB</option>
+              <option value="2">2 TB</option>
+              <option value="5">5 TB</option>
+              <option value="10">10 TB</option>
+            </SelectInput>
+          </Field>
+          <div className="flex justify-end gap-2 pt-1">
+            <EButton type="button" variant="secondary" onClick={() => setOpen(false)}>Cancel</EButton>
+            <EButton type="submit" variant="primary">Add capacity</EButton>
+          </div>
+        </form>
+      </Modal>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Surface className="flex items-center gap-5 p-6">
@@ -37,7 +65,7 @@ export default function StoragePage() {
           <div>
             <p className="text-sm font-semibold text-eoc-fg">Capacity</p>
             <p className="mt-1 text-xs text-eoc-fg2">Forecast to reach 4.8 TB next month</p>
-            <EButton size="sm" variant="secondary" className="mt-3">Add capacity</EButton>
+            <EButton size="sm" variant="secondary" className="mt-3" onClick={() => setOpen(true)}>Add capacity</EButton>
           </div>
         </Surface>
 
@@ -62,7 +90,7 @@ export default function StoragePage() {
 
       <Surface className="p-5">
         <SectionHeader title="Storage cost trend" description="Trailing 12 months (₹K/mo)" />
-        <div className="mt-4"><AreaTrend data={growth} dataKey="cost" xKey="m" color="#22C55E" height={200} formatter={(v) => `$${v.toFixed(1)}k`} /></div>
+        <div className="mt-4"><AreaTrend data={growth} dataKey="cost" xKey="m" color="#22C55E" height={200} formatter={(v) => `₹${v.toFixed(1)}k`} /></div>
       </Surface>
     </div>
   );
