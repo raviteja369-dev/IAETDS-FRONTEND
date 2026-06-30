@@ -6,8 +6,7 @@ import { toast } from "sonner";
 import { PageHeader, EButton } from "@/components/eoc/page-header";
 import { IconTile, SectionHeader, StatusPill, Surface } from "@/components/eoc/primitives";
 import { Modal, Field, TextInput } from "@/components/eoc/modal";
-
-type Doc = { title: string; author: string; at: string };
+import { useEocStore } from "@/lib/eoc/store";
 
 const collections = [
   { name: "Engineering Runbooks", docs: 142, updated: "2h ago", accent: "#4F7CFF" },
@@ -18,16 +17,10 @@ const collections = [
   { name: "Compliance Library", docs: 87, updated: "Yesterday", accent: "#3B82F6" },
 ];
 
-const initialRecent: Doc[] = [
-  { title: "Incident response runbook v4", author: "Meera Iyer", at: "2h ago" },
-  { title: "Q3 budget approval workflow", author: "Kabir Singh", at: "5h ago" },
-  { title: "Zero-trust access policy", author: "Riya Kapoor", at: "Yesterday" },
-  { title: "New hire IT provisioning", author: "People Ops", at: "2d ago" },
-];
-
 export default function KnowledgePage() {
   const [query, setQuery] = React.useState("");
-  const [recent, setRecent] = React.useState<Doc[]>(initialRecent);
+  const recent = useEocStore((s) => s.docs);
+  const addDoc = useEocStore((s) => s.addDoc);
   const [open, setOpen] = React.useState(false);
   const [title, setTitle] = React.useState("");
 
@@ -37,7 +30,7 @@ export default function KnowledgePage() {
       toast.error("Please enter a document title");
       return;
     }
-    setRecent((prev) => [{ title: title.trim(), author: "You", at: "just now" }, ...prev]);
+    addDoc({ title: title.trim(), author: "You", at: "just now" });
     toast.success("Document created", { description: `${title.trim()} added to the library.` });
     setTitle("");
     setOpen(false);

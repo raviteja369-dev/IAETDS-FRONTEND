@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { PageHeader, EButton } from "@/components/eoc/page-header";
 import { SectionHeader, StatusPill, Surface, type Tone } from "@/components/eoc/primitives";
 import { Modal, Field, TextInput } from "@/components/eoc/modal";
-import { accessMembers } from "@/lib/eoc/data";
+import { useEocStore } from "@/lib/eoc/store";
 import type { AccessMember } from "@/lib/eoc/types";
 import { cn } from "@/lib/utils";
 
@@ -14,7 +14,9 @@ const statusTone: Record<string, Tone> = { active: "success", invited: "info", s
 
 export default function IdentityPage() {
   const [query, setQuery] = React.useState("");
-  const [members, setMembers] = React.useState<AccessMember[]>(accessMembers);
+  const members = useEocStore((s) => s.members);
+  const inviteMember = useEocStore((s) => s.inviteMember);
+  const setMemberStatus = useEocStore((s) => s.setMemberStatus);
   const filtered = members.filter((m) => m.name.toLowerCase().includes(query.toLowerCase()) || m.email.toLowerCase().includes(query.toLowerCase()) || m.role.toLowerCase().includes(query.toLowerCase()));
 
   const [open, setOpen] = React.useState(false);
@@ -33,8 +35,7 @@ export default function IdentityPage() {
       toast.error("Please enter a valid email address");
       return;
     }
-    const member: AccessMember = {
-      id: `u-${Date.now().toString(36)}`,
+    inviteMember({
       name: name.trim(),
       email: email.trim(),
       role: role.trim() || "Employee",
@@ -42,9 +43,8 @@ export default function IdentityPage() {
       status: "invited",
       mfa: false,
       lastActive: "Pending",
-    };
-    setMembers((prev) => [member, ...prev]);
-    toast.success("Invitation sent", { description: `${member.email} has been invited.` });
+    });
+    toast.success("Invitation sent", { description: `${email.trim()} has been invited.` });
     setName("");
     setEmail("");
     setRole("");
@@ -53,7 +53,7 @@ export default function IdentityPage() {
   };
 
   const setStatus = (id: string, status: AccessMember["status"]) => {
-    setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, status } : m)));
+    setMemberStatus(id, status);
     toast.success(status === "suspended" ? "Member suspended" : "Member reactivated");
   };
 

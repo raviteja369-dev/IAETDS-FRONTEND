@@ -8,12 +8,18 @@ import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { CommandPalette } from "./command-palette";
 import { AIAssistant } from "./ai-assistant";
+import { useEocStore } from "@/lib/eoc/store";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { setTheme } = useTheme();
   const pathname = usePathname();
   const [paletteOpen, setPaletteOpen] = React.useState(false);
   const [mobileNav, setMobileNav] = React.useState(false);
+
+  // Load persisted data from the browser after mount (avoids SSR hydration mismatch)
+  React.useEffect(() => {
+    useEocStore.persist.rehydrate();
+  }, []);
 
   // Dark-only experience
   React.useEffect(() => {

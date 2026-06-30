@@ -1,7 +1,9 @@
 "use client";
 
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import {
+  accessMembers as seedMembers,
   applications as seedApplications,
   invoices as seedInvoices,
   maintenanceTasks as seedMaintenance,
@@ -11,6 +13,7 @@ import {
   transactions as seedTransactions,
 } from "./data";
 import type {
+  AccessMember,
   AppCategory,
   Application,
   Invoice,
@@ -20,6 +23,44 @@ import type {
   Subscription,
   Transaction,
 } from "./types";
+
+export interface PaymentMethod {
+  id: string;
+  type: string;
+  label: string;
+  detail: string;
+  addedAt: string;
+}
+
+export interface AutomationFlow {
+  name: string;
+  trigger: string;
+  runs: string;
+  success: number;
+  status: string;
+}
+
+export interface KnowledgeDoc {
+  title: string;
+  author: string;
+  at: string;
+}
+
+const seedFlows: AutomationFlow[] = [
+  { name: "Auto-remediate degraded apps", trigger: "Health < 80%", runs: "1,204", success: 99.4, status: "active" },
+  { name: "Onboard new employee", trigger: "HR: new hire", runs: "318", success: 100, status: "active" },
+  { name: "Invoice overdue escalation", trigger: "Invoice overdue", runs: "92", success: 98.9, status: "active" },
+  { name: "Security incident response", trigger: "Critical finding", runs: "47", success: 100, status: "active" },
+  { name: "Scale on traffic spike", trigger: "CPU > 75%", runs: "612", success: 99.8, status: "active" },
+  { name: "Nightly backup verification", trigger: "Schedule 03:00", runs: "180", success: 100, status: "paused" },
+];
+
+const seedDocs: KnowledgeDoc[] = [
+  { title: "Incident response runbook v4", author: "Meera Iyer", at: "2h ago" },
+  { title: "Q3 budget approval workflow", author: "Kabir Singh", at: "5h ago" },
+  { title: "Zero-trust access policy", author: "Riya Kapoor", at: "Yesterday" },
+  { title: "New hire IT provisioning", author: "People Ops", at: "2d ago" },
+];
 
 function today(): string {
   return new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
@@ -54,6 +95,11 @@ interface EocState {
   invoices: Invoice[];
   subscriptions: Subscription[];
   transactions: Transaction[];
+  walletBalance: number;
+  paymentMethods: PaymentMethod[];
+  flows: AutomationFlow[];
+  members: AccessMember[];
+  docs: KnowledgeDoc[];
 
   // ── Applications ──
   installApp: (mk: MarketplaceSeed) => { created: boolean; id: string };
@@ -78,9 +124,26 @@ interface EocState {
 
   // ── Billing ──
   payInvoice: (id: string) => void;
+  makePayment: (p: { amount: number; method: string; purpose: string; toWallet: boolean }) => void;
+  addPaymentMethod: (pm: Omit<PaymentMethod, "id" | "addedAt">) => void;
+  removePaymentMethod: (id: string) => void;
+
+  // ── Automation ──
+  addFlow: (flow: Pick<AutomationFlow, "name" | "trigger">) => void;
+  toggleFlow: (name: string) => void;
+  runFlow: (name: string) => void;
+
+  // ── Identity ──
+  inviteMember: (member: Omit<AccessMember, "id">) => void;
+  setMemberStatus: (id: string, status: AccessMember["status"]) => void;
+
+  // ── Knowledge ──
+  addDoc: (doc: KnowledgeDoc) => void;
 }
 
-export const useEocStore = create<EocState>((set, get) => ({
+export const useEocStore = create<EocState>()(
+  persist(
+    (set, get) => ({
   applications: [...seedApplications],
   maintenanceTasks: [...seedMaintenance],
   securityFindings: [...seedSecurity],
@@ -88,6 +151,11 @@ export const useEocStore = create<EocState>((set, get) => ({
   invoices: [...seedInvoices],
   subscriptions: [...seedSubscriptions],
   transactions: [...seedTransactions],
+  walletBalance: 1240000,
+  paymentMethods: [],
+  flows: [...seedFlows],
+  members: [...seedMembers],
+  docs: [...seedDocs],
 
   installApp: (mk) => {
     const existing = get().applications.find((a) => a.name === mk.name);
@@ -239,6 +307,91 @@ export const useEocStore = create<EocState>((set, get) => ({
     }));
     get().pushNotification({ title: "Payment received", detail: `${invoice.number} paid successfully.`, tone: "success" });
   },
-}));
+
+  makePayment: ({ amount, method, purpose, toWallet }) => {
+    set((s) => ({
+      walletBalance: toWallet ? s.walletBalance + amount : Math.max(0, s.walletBalance - (method === "Wallet" ? amount : 0)),
+      transactions: [
+        {
+          id: `t-${Date.now().toString(36)}`,
+          description: purpose,
+          amount: toWallet ? -amount : amount,
+          type: toWallet ? "credit" : "charge",
+          status: "succeeded",
+          method,
+          at: today(),
+        },
+        ...s.transactions,
+      ],
+    }));
+    get().pushNotification({
+      title: toWallet ? "Funds added" : "Payment successful",
+      detail: `${purpose} · ₹${amount.toLocaleString("en-IN")}`,
+      tone: "success",
+    });
+  },
+
+  addPaymentMethod: (pm) =>
+    set((s) => ({
+      paymentMethods: [
+        { id: `pm-${Date.now().toString(36)}`, addedAt: today(), type: pm.type, label: pm.label, detail: pm.detail },
+        ...s.paymentMethods,
+      ],
+    })),
+
+  removePaymentMethod: (id) =>
+    set((s) => ({ paymentMethods: s.paymentMethods.filter((p) => p.id !== id) })),
+
+  addFlow: (flow) =>
+    set((s) => ({
+      flows: [{ name: flow.name, trigger: flow.trigger, runs: "0", success: 100, status: "active" }, ...s.flows],
+    })),
+
+  toggleFlow: (name) =>
+    set((s) => ({
+      flows: s.flows.map((f) => (f.name === name ? { ...f, status: f.status === "active" ? "paused" : "active" } : f)),
+    })),
+
+  runFlow: (name) =>
+    set((s) => ({
+      flows: s.flows.map((f) => {
+        if (f.name !== name) return f;
+        const runs = (parseInt(f.runs.replace(/,/g, ""), 10) + 1).toLocaleString("en-IN");
+        return { ...f, runs };
+      }),
+    })),
+
+  inviteMember: (member) =>
+    set((s) => ({
+      members: [{ id: `u-${Date.now().toString(36)}`, ...member }, ...s.members],
+    })),
+
+  setMemberStatus: (id, status) =>
+    set((s) => ({ members: s.members.map((m) => (m.id === id ? { ...m, status } : m)) })),
+
+  addDoc: (doc) => set((s) => ({ docs: [doc, ...s.docs] })),
+    }),
+    {
+      name: "eoc-store",
+      version: 1,
+      skipHydration: true,
+      storage: createJSONStorage(() => localStorage),
+      partialize: (s) => ({
+        applications: s.applications,
+        maintenanceTasks: s.maintenanceTasks,
+        securityFindings: s.securityFindings,
+        notifications: s.notifications,
+        invoices: s.invoices,
+        subscriptions: s.subscriptions,
+        transactions: s.transactions,
+        walletBalance: s.walletBalance,
+        paymentMethods: s.paymentMethods,
+        flows: s.flows,
+        members: s.members,
+        docs: s.docs,
+      }),
+    },
+  ),
+);
 
 export const selectUnreadCount = (s: EocState) => s.notifications.filter((n) => !n.read).length;

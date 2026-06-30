@@ -13,17 +13,7 @@ import {
 } from "@/components/eoc/primitives";
 import { BarSeries } from "@/components/eoc/charts";
 import { Modal, Field, TextInput } from "@/components/eoc/modal";
-
-type Flow = { name: string; trigger: string; runs: string; success: number; status: string };
-
-const initialFlows: Flow[] = [
-  { name: "Auto-remediate degraded apps", trigger: "Health < 80%", runs: "1,204", success: 99.4, status: "active" },
-  { name: "Onboard new employee", trigger: "HR: new hire", runs: "318", success: 100, status: "active" },
-  { name: "Invoice overdue escalation", trigger: "Invoice overdue", runs: "92", success: 98.9, status: "active" },
-  { name: "Security incident response", trigger: "Critical finding", runs: "47", success: 100, status: "active" },
-  { name: "Scale on traffic spike", trigger: "CPU > 75%", runs: "612", success: 99.8, status: "active" },
-  { name: "Nightly backup verification", trigger: "Schedule 03:00", runs: "180", success: 100, status: "paused" },
-];
+import { useEocStore } from "@/lib/eoc/store";
 
 const runSeries = Array.from({ length: 7 }, (_, i) => ({
   m: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][i],
@@ -32,27 +22,21 @@ const runSeries = Array.from({ length: 7 }, (_, i) => ({
 }));
 
 export default function AutomationPage() {
-  const [flows, setFlows] = React.useState<Flow[]>(initialFlows);
+  const flows = useEocStore((s) => s.flows);
+  const addFlow = useEocStore((s) => s.addFlow);
+  const toggleFlow = useEocStore((s) => s.toggleFlow);
+  const runFlow = useEocStore((s) => s.runFlow);
 
-  const toggle = (name: string) =>
-    setFlows((prev) =>
-      prev.map((f) => {
-        if (f.name !== name) return f;
-        const status = f.status === "active" ? "paused" : "active";
-        toast.success(`${f.name} ${status === "active" ? "activated" : "paused"}`);
-        return { ...f, status };
-      }),
-    );
+  const toggle = (name: string) => {
+    const flow = flows.find((f) => f.name === name);
+    toggleFlow(name);
+    toast.success(`${name} ${flow?.status === "active" ? "paused" : "activated"}`);
+  };
 
-  const run = (name: string) =>
-    setFlows((prev) =>
-      prev.map((f) => {
-        if (f.name !== name) return f;
-        const runs = (parseInt(f.runs.replace(/,/g, ""), 10) + 1).toLocaleString("en-IN");
-        toast.success(`${f.name} executed`, { description: "Run completed successfully." });
-        return { ...f, runs };
-      }),
-    );
+  const run = (name: string) => {
+    runFlow(name);
+    toast.success(`${name} executed`, { description: "Run completed successfully." });
+  };
 
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState("");
@@ -64,7 +48,7 @@ export default function AutomationPage() {
       toast.error("Please fill in all fields");
       return;
     }
-    setFlows((prev) => [{ name: name.trim(), trigger: trigger.trim(), runs: "0", success: 100, status: "active" }, ...prev]);
+    addFlow({ name: name.trim(), trigger: trigger.trim() });
     toast.success("Workflow created", { description: `${name.trim()} is now active.` });
     setName("");
     setTrigger("");

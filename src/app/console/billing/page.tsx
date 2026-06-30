@@ -70,7 +70,12 @@ export default function BillingPage() {
   const invoices = useEocStore((s) => s.invoices);
   const transactions = useEocStore((s) => s.transactions);
   const subscriptions = useEocStore((s) => s.subscriptions);
+  const walletBalance = useEocStore((s) => s.walletBalance);
+  const paymentMethods = useEocStore((s) => s.paymentMethods);
   const payInvoice = useEocStore((s) => s.payInvoice);
+  const makePayment = useEocStore((s) => s.makePayment);
+  const savePaymentMethod = useEocStore((s) => s.addPaymentMethod);
+  const removePaymentMethod = useEocStore((s) => s.removePaymentMethod);
 
   const monthlySpend = subscriptions.filter((s) => s.status === "active").reduce((sum, s) => sum + s.amount, 0) || 48250;
   const outstanding = invoices.filter((i) => i.status !== "paid").reduce((sum, i) => sum + i.amount, 0);
@@ -78,6 +83,33 @@ export default function BillingPage() {
   const handlePay = (id: string, number: string) => {
     payInvoice(id);
     toast.success(`${number} paid`, { description: "A receipt has been emailed to billing." });
+  };
+
+  const [payOpen, setPayOpen] = React.useState(false);
+  const [payAmount, setPayAmount] = React.useState("");
+  const [payPurpose, setPayPurpose] = React.useState("Wallet top-up");
+  const [payMethod, setPayMethod] = React.useState("UPI");
+  const [payMode, setPayMode] = React.useState<"wallet" | "payment">("wallet");
+
+  const submitPayment = (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = Math.round(Number(payAmount.replace(/[^0-9.]/g, "")));
+    if (!amount || amount <= 0) {
+      toast.error("Enter a valid amount greater than ₹0");
+      return;
+    }
+    if (!payPurpose.trim()) {
+      toast.error("Please enter a purpose");
+      return;
+    }
+    const toWallet = payMode === "wallet";
+    makePayment({ amount, method: payMethod, purpose: payPurpose.trim(), toWallet });
+    toast.success(toWallet ? "Funds added to wallet" : "Payment successful", {
+      description: `${formatCurrency(amount)} · ${payMethod}`,
+    });
+    setPayAmount("");
+    setPayPurpose("Wallet top-up");
+    setPayOpen(false);
   };
 
   const [pmOpen, setPmOpen] = React.useState(false);
@@ -113,6 +145,7 @@ export default function BillingPage() {
           : pmType === "Net banking"
             ? `${pm.bank} •• ${(pm.account ?? "").slice(-4)}`
             : `${pm.provider} · ${pm.mobile}`;
+    savePaymentMethod({ type: pmType, label: pmType, detail: summary });
     toast.success("Payment method added", { description: `${pmType} · ${summary}` });
     setPm(buildPmDefaults(pmType));
     setPmOpen(false);
@@ -127,7 +160,8 @@ export default function BillingPage() {
         actions={
           <>
             <EButton variant="secondary" onClick={() => toast.success("Statement downloaded", { description: "Trailing 12 months exported as PDF." })}><Download className="h-4 w-4" /> Statements</EButton>
-            <EButton variant="primary" onClick={() => setPmOpen(true)}><Plus className="h-4 w-4" /> Add payment method</EButton>
+            <EButton variant="secondary" onClick={() => setPmOpen(true)}><Plus className="h-4 w-4" /> Add payment method</EButton>
+            <EButton variant="primary" onClick={() => setPayOpen(true)}><Wallet className="h-4 w-4" /> Make a payment</EButton>
           </>
         }
       />
@@ -173,6 +207,43 @@ export default function BillingPage() {
         </form>
       </Modal>
 
+      <Modal open={payOpen} onOpenChange={setPayOpen} title="Make a payment" description="Add funds to your wallet or make a one-time payment.">
+        <form onSubmit={submitPayment} className="space-y-4 p-5">
+          <Field label="Type" htmlFor="pay-mode">
+            <SelectInput
+              id="pay-mode"
+              value={payMode}
+              onChange={(e) => {
+                const mode = e.target.value as "wallet" | "payment";
+                setPayMode(mode);
+                setPayPurpose(mode === "wallet" ? "Wallet top-up" : "One-time payment");
+              }}
+            >
+              <option value="wallet">Add funds to wallet</option>
+              <option value="payment">One-time payment</option>
+            </SelectInput>
+          </Field>
+          <Field label="Amount (₹)" htmlFor="pay-amount" hint={payAmount ? `You will be charged ${formatCurrency(Math.round(Number(payAmount.replace(/[^0-9.]/g, "")) || 0))}` : "Enter the amount you want to pay"}>
+            <TextInput id="pay-amount" inputMode="numeric" value={payAmount} onChange={(e) => setPayAmount(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="e.g. 5000" autoFocus />
+          </Field>
+          <Field label="Purpose" htmlFor="pay-purpose">
+            <TextInput id="pay-purpose" value={payPurpose} onChange={(e) => setPayPurpose(e.target.value)} placeholder="What is this payment for?" />
+          </Field>
+          <Field label="Pay using" htmlFor="pay-method">
+            <SelectInput id="pay-method" value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
+              <option value="UPI">UPI</option>
+              <option value="Card">Card</option>
+              <option value="Net banking">Net banking</option>
+              <option value="Wallet">Wallet (balance {formatCurrency(walletBalance, true)})</option>
+            </SelectInput>
+          </Field>
+          <div className="flex justify-end gap-2 pt-1">
+            <EButton type="button" variant="secondary" onClick={() => setPayOpen(false)}>Cancel</EButton>
+            <EButton type="submit" variant="primary">{payMode === "wallet" ? "Add funds" : "Pay now"}</EButton>
+          </div>
+        </form>
+      </Modal>
+
       {/* Plan + wallet + spend */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="lg:col-span-1">
@@ -202,11 +273,42 @@ export default function BillingPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <MiniStat icon={Wallet} label="Wallet balance" value={formatCurrency(1240000)} />
+        <MiniStat icon={Wallet} label="Wallet balance" value={formatCurrency(walletBalance)} />
         <MiniStat icon={CreditCard} label="AI credits" value="318k" />
         <MiniStat label="Outstanding" value={formatCurrency(outstanding)} tone={outstanding > 0 ? "warning" : "success"} />
         <MiniStat label="Payment success" value="99.4%" tone="success" />
       </div>
+
+      {/* Saved payment methods */}
+      <Surface className="p-5">
+        <SectionHeader
+          title="Saved payment methods"
+          description="Methods you've added are saved to your account and available at checkout."
+          action={<EButton size="sm" variant="secondary" onClick={() => setPmOpen(true)}><Plus className="h-4 w-4" /> Add</EButton>}
+        />
+        {paymentMethods.length === 0 ? (
+          <div className="mt-4 rounded-xl border border-dashed border-eoc-border bg-white/[0.02] p-6 text-center">
+            <CreditCard className="mx-auto h-6 w-6 text-eoc-muted" />
+            <p className="mt-2 text-sm text-eoc-fg2">No payment methods saved yet</p>
+            <p className="text-xs text-eoc-muted">Add a UPI ID, card, bank account or wallet to get started.</p>
+          </div>
+        ) : (
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {paymentMethods.map((p) => (
+              <div key={p.id} className="flex items-center gap-3 rounded-xl border border-eoc-border bg-white/[0.02] p-3.5">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-eoc-fg2">
+                  {p.type === "Wallet" ? <Wallet className="h-4 w-4" /> : <CreditCard className="h-4 w-4" />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-eoc-fg">{p.label}</p>
+                  <p className="truncate text-xs text-eoc-muted">{p.detail} · added {p.addedAt}</p>
+                </div>
+                <button onClick={() => { removePaymentMethod(p.id); toast.success("Payment method removed"); }} className="text-xs font-medium text-eoc-danger hover:text-eoc-fg">Remove</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Surface>
 
       {/* Usage billing */}
       <Surface className="p-5">
