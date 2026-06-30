@@ -66,6 +66,23 @@ const config: Config = {
           accent: "hsl(var(--sidebar-accent))",
           border: "hsl(var(--sidebar-border))",
         },
+        // Enterprise Operations Cloud — dark-only design system tokens
+        eoc: {
+          bg: "#09090B",
+          surface: "#111114",
+          card: "#151519",
+          elevated: "#1B1B20",
+          border: "rgba(255,255,255,0.08)",
+          "border-strong": "rgba(255,255,255,0.14)",
+          fg: "#FFFFFF",
+          fg2: "#A1A1AA",
+          muted: "#71717A",
+          success: "#22C55E",
+          warning: "#F59E0B",
+          danger: "#EF4444",
+          info: "#3B82F6",
+          accent: "#4F7CFF",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

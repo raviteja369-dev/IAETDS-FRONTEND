@@ -44,7 +44,7 @@ export default function LoginPage() {
   const [showPw, setShowPw] = React.useState(false);
 
   React.useEffect(() => {
-    if (hydrated && user) router.replace("/dashboard");
+    if (hydrated && user) router.replace("/console");
   }, [hydrated, user, router]);
 
   const submit = async (e: React.FormEvent) => {
