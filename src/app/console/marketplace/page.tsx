@@ -5,11 +5,15 @@ import { useRouter } from "next/navigation";
 import * as Icons from "lucide-react";
 import { BadgeCheck, Download, Search, Star } from "lucide-react";
 import { motion } from "framer-motion";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { PageHeader, EButton } from "@/components/eoc/page-header";
 import { IconTile, StatusPill, Surface } from "@/components/eoc/primitives";
+import { Modal, Field, TextInput } from "@/components/eoc/modal";
 import { marketplaceApps } from "@/lib/eoc/data";
 import { useEocStore, type MarketplaceSeed } from "@/lib/eoc/store";
+import { marketplaceSubmitSchema, type MarketplaceSubmitInput } from "@/lib/eoc/validation";
 import { cn } from "@/lib/utils";
 
 const CATEGORIES = ["All", "Security", "Automation", "Analytics", "Finance", "Support", "CRM", "Storage"];
@@ -17,8 +21,18 @@ const CATEGORIES = ["All", "Security", "Automation", "Analytics", "Finance", "Su
 export default function MarketplacePage() {
   const router = useRouter();
   const installApp = useEocStore((s) => s.installApp);
+  const applications = useEocStore((s) => s.applications);
   const [query, setQuery] = React.useState("");
   const [cat, setCat] = React.useState("All");
+  const [submitOpen, setSubmitOpen] = React.useState(false);
+  const [submitting, setSubmitting] = React.useState(false);
+
+  const installedNames = new Set(applications.map((a) => a.name));
+
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<MarketplaceSubmitInput>({
+    resolver: zodResolver(marketplaceSubmitSchema),
+    defaultValues: { name: "", email: "", description: "" },
+  });
 
   const handleInstall = (a: MarketplaceSeed) => {
     const { created } = installApp(a);
@@ -34,6 +48,16 @@ export default function MarketplacePage() {
     }
   };
 
+  const onSubmitApp = handleSubmit((data) => {
+    setSubmitting(true);
+    setTimeout(() => {
+      setSubmitting(false);
+      toast.success("Submission received", { description: `We'll review ${data.name} and contact ${data.email}.` });
+      reset();
+      setSubmitOpen(false);
+    }, 600);
+  });
+
   const filtered = marketplaceApps.filter((a) => {
     const mq = !query || a.name.toLowerCase().includes(query.toLowerCase()) || a.description.toLowerCase().includes(query.toLowerCase());
     const mc = cat === "All" || a.category === cat;
@@ -48,27 +72,48 @@ export default function MarketplacePage() {
         eyebrow="Enterprise app store"
         title="Marketplace"
         description="Discover, trial, and install verified enterprise applications in one click. Everything is pre-integrated with your workspace."
-        actions={<EButton variant="secondary">Submit an app</EButton>}
+        actions={<EButton variant="secondary" onClick={() => setSubmitOpen(true)}>Submit an app</EButton>}
       />
 
-      {/* Featured hero */}
+      <Modal open={submitOpen} onOpenChange={(v) => { setSubmitOpen(v); if (!v) reset(); }} title="Submit an application" description="Tell us about your app for marketplace review.">
+        <form onSubmit={onSubmitApp} className="space-y-4 p-5">
+          <Field label="Application name" htmlFor="sub-name" error={errors.name?.message}>
+            <TextInput id="sub-name" {...register("name")} placeholder="Your app name" autoFocus />
+          </Field>
+          <Field label="Contact email" htmlFor="sub-email" error={errors.email?.message}>
+            <TextInput id="sub-email" type="email" {...register("email")} placeholder="you@company.com" />
+          </Field>
+          <Field label="Description" htmlFor="sub-desc" error={errors.description?.message}>
+            <TextInput id="sub-desc" {...register("description")} placeholder="What does your app do?" />
+          </Field>
+          <div className="flex justify-end gap-2 pt-1">
+            <EButton type="button" variant="secondary" onClick={() => setSubmitOpen(false)}>Cancel</EButton>
+            <EButton type="submit" variant="primary" disabled={submitting}>{submitting ? "Submitting…" : "Submit for review"}</EButton>
+          </div>
+        </form>
+      </Modal>
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {featured.map((a, i) => {
           const Icon = (Icons as unknown as Record<string, Icons.LucideIcon>)[a.icon] ?? Icons.Box;
+          const installed = installedNames.has(a.name);
           return (
             <motion.div key={a.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
               <Surface hover className="relative overflow-hidden p-5">
                 <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-20 blur-2xl" style={{ background: a.accent }} />
                 <div className="flex items-center justify-between">
                   <IconTile icon={Icon} accent={a.accent} size="lg" />
-                  <StatusPill tone="info">Featured</StatusPill>
+                  <div className="flex gap-2">
+                    {installed && <StatusPill tone="success">Installed</StatusPill>}
+                    <StatusPill tone="info">Featured</StatusPill>
+                  </div>
                 </div>
                 <p className="mt-4 text-base font-semibold text-eoc-fg">{a.name}</p>
                 <p className="mt-1 line-clamp-2 text-xs text-eoc-fg2">{a.description}</p>
                 <div className="mt-4 flex items-center justify-between">
                   <span className="text-sm font-medium text-eoc-fg">{a.price}</span>
-                  <EButton size="sm" variant="primary" onClick={() => handleInstall(a)}>
-                    <Download className="h-3.5 w-3.5" /> Install
+                  <EButton size="sm" variant="primary" onClick={() => handleInstall(a)} disabled={installed}>
+                    <Download className="h-3.5 w-3.5" /> {installed ? "Installed" : "Install"}
                   </EButton>
                 </div>
               </Surface>
@@ -77,7 +122,6 @@ export default function MarketplacePage() {
         })}
       </div>
 
-      {/* Search + filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="flex h-10 flex-1 items-center gap-2 rounded-xl border border-eoc-border bg-white/[0.03] px-3">
           <Search className="h-4 w-4 text-eoc-muted" />
@@ -92,10 +136,12 @@ export default function MarketplacePage() {
         </div>
       </div>
 
-      {/* Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {filtered.map((a, i) => {
+        {filtered.length === 0 ? (
+          <p className="col-span-full py-8 text-center text-sm text-eoc-muted">No apps match your search.</p>
+        ) : filtered.map((a, i) => {
           const Icon = (Icons as unknown as Record<string, Icons.LucideIcon>)[a.icon] ?? Icons.Box;
+          const installed = installedNames.has(a.name);
           return (
             <motion.div key={a.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
               <Surface hover className="flex h-full flex-col p-5">
@@ -108,6 +154,7 @@ export default function MarketplacePage() {
                     </div>
                     <p className="text-xs text-eoc-muted">{a.category}</p>
                   </div>
+                  {installed && <StatusPill tone="success">Installed</StatusPill>}
                 </div>
                 <p className="mt-3 line-clamp-2 flex-1 text-xs leading-relaxed text-eoc-fg2">{a.description}</p>
                 <div className="mt-4 flex items-center gap-3 text-xs text-eoc-muted">
@@ -116,7 +163,9 @@ export default function MarketplacePage() {
                 </div>
                 <div className="mt-4 flex items-center justify-between border-t border-eoc-border pt-4">
                   <span className="text-sm font-medium text-eoc-fg">{a.price}</span>
-                  <EButton size="sm" variant="secondary" onClick={() => handleInstall(a)}>Install</EButton>
+                  <EButton size="sm" variant="secondary" onClick={() => handleInstall(a)} disabled={installed}>
+                    {installed ? "Installed" : "Install"}
+                  </EButton>
                 </div>
               </Surface>
             </motion.div>

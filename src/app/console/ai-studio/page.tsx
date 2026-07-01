@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Bot, KeyRound, Plus, Sparkles } from "lucide-react";
+import { Bot, KeyRound, Plus, Sparkles, Trash2 } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { PageHeader, EButton } from "@/components/eoc/page-header";
 import {
@@ -15,6 +17,7 @@ import { AreaTrend } from "@/components/eoc/charts";
 import { Modal, Field, TextInput, SelectInput } from "@/components/eoc/modal";
 import { costSeries } from "@/lib/eoc/data";
 import { useEocStore } from "@/lib/eoc/store";
+import { agentSchema, type AgentInput } from "@/lib/eoc/validation";
 import { formatCurrency } from "@/lib/eoc/format";
 
 const models = [
@@ -26,24 +29,32 @@ const models = [
 export default function AIStudioPage() {
   const agents = useEocStore((s) => s.agents);
   const addAgent = useEocStore((s) => s.addAgent);
+  const toggleAgent = useEocStore((s) => s.toggleAgent);
+  const deleteAgent = useEocStore((s) => s.deleteAgent);
+  const settings = useEocStore((s) => s.settings);
   const activeCount = agents.filter((a) => a.status === "active").length;
 
   const [open, setOpen] = React.useState(false);
-  const [name, setName] = React.useState("");
-  const [model, setModel] = React.useState("GPT-4o");
+  const [keysOpen, setKeysOpen] = React.useState(false);
+  const [submitting, setSubmitting] = React.useState(false);
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) {
-      toast.error("Please enter an agent name");
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<AgentInput>({
+    resolver: zodResolver(agentSchema),
+    defaultValues: { name: "", model: "GPT-4o" },
+  });
+
+  const onSubmit = handleSubmit((data) => {
+    setSubmitting(true);
+    const result = addAgent({ name: data.name, model: data.model });
+    setSubmitting(false);
+    if (!result.ok) {
+      toast.error(result.error ?? "Could not create agent");
       return;
     }
-    addAgent({ name: name.trim(), model });
-    toast.success("Agent created", { description: `${name.trim()} (${model}) is now active.` });
-    setName("");
-    setModel("GPT-4o");
+    toast.success("Agent created", { description: `${data.name} (${data.model}) is now active.` });
+    reset();
     setOpen(false);
-  };
+  });
 
   return (
     <div className="space-y-6">
@@ -53,19 +64,19 @@ export default function AIStudioPage() {
         description="Build, deploy and govern AI agents, prompts, knowledge sources and workflows from a single intelligent platform."
         actions={
           <>
-            <EButton variant="secondary" onClick={() => toast.info("API keys", { description: "Manage and rotate workspace API keys." })}><KeyRound className="h-4 w-4" /> API keys</EButton>
+            <EButton variant="secondary" onClick={() => setKeysOpen(true)}><KeyRound className="h-4 w-4" /> API keys</EButton>
             <EButton variant="primary" onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> New agent</EButton>
           </>
         }
       />
 
-      <Modal open={open} onOpenChange={setOpen} title="New agent" description="Deploy a new AI agent to your workspace.">
-        <form onSubmit={submit} className="space-y-4 p-5">
-          <Field label="Agent name" htmlFor="ag-name">
-            <TextInput id="ag-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Contract Reviewer" autoFocus />
+      <Modal open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset(); }} title="New agent" description="Deploy a new AI agent to your workspace.">
+        <form onSubmit={onSubmit} className="space-y-4 p-5">
+          <Field label="Agent name" htmlFor="ag-name" error={errors.name?.message}>
+            <TextInput id="ag-name" {...register("name")} placeholder="e.g. Contract Reviewer" autoFocus />
           </Field>
-          <Field label="Model" htmlFor="ag-model">
-            <SelectInput id="ag-model" value={model} onChange={(e) => setModel(e.target.value)}>
+          <Field label="Model" htmlFor="ag-model" error={errors.model?.message}>
+            <SelectInput id="ag-model" {...register("model")}>
               <option>GPT-4o</option>
               <option>GPT-4o-mini</option>
               <option>Claude 3.5</option>
@@ -74,9 +85,26 @@ export default function AIStudioPage() {
           </Field>
           <div className="flex justify-end gap-2 pt-1">
             <EButton type="button" variant="secondary" onClick={() => setOpen(false)}>Cancel</EButton>
-            <EButton type="submit" variant="primary">Create agent</EButton>
+            <EButton type="submit" variant="primary" disabled={submitting}>{submitting ? "Creating…" : "Create agent"}</EButton>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={keysOpen} onOpenChange={setKeysOpen} title="Workspace API keys" description="Demo workspace keys for local development.">
+        <div className="space-y-3 p-5">
+          <div className="rounded-xl border border-eoc-border bg-white/[0.02] p-3">
+            <p className="text-xs text-eoc-muted">Workspace</p>
+            <p className="font-mono text-sm text-eoc-fg">{settings.workspaceName}</p>
+          </div>
+          <div className="rounded-xl border border-eoc-border bg-white/[0.02] p-3">
+            <p className="text-xs text-eoc-muted">Primary key</p>
+            <p className="font-mono text-sm text-eoc-accent">eoc_live_sk_demo_••••••••4242</p>
+          </div>
+          <p className="text-xs text-eoc-muted">Rotate keys and manage scopes in production via the Identity & Access API.</p>
+        </div>
+        <div className="flex justify-end border-t border-eoc-border p-4">
+          <EButton variant="primary" onClick={() => setKeysOpen(false)}>Close</EButton>
+        </div>
       </Modal>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -103,6 +131,14 @@ export default function AIStudioPage() {
                 <div className="mt-3">
                   <div className="mb-1 flex justify-between text-[11px] text-eoc-muted"><span>Success rate</span><span>{a.success}%</span></div>
                   <ProgressBar value={a.success} tone="success" />
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <EButton size="sm" variant="secondary" onClick={() => { toggleAgent(a.name); toast.success(a.status === "active" ? `${a.name} paused` : `${a.name} activated`); }}>
+                    {a.status === "active" ? "Pause" : "Activate"}
+                  </EButton>
+                  <EButton size="sm" variant="ghost" className="text-eoc-danger" onClick={() => { deleteAgent(a.name); toast.success(`${a.name} deleted`); }}>
+                    <Trash2 className="h-3.5 w-3.5" /> Delete
+                  </EButton>
                 </div>
               </Surface>
             ))}

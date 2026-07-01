@@ -56,7 +56,7 @@ export function KpiCard({ stat, index = 0 }: { stat: ScoreCard; index?: number }
 
 const impactTone: Record<string, Tone> = { high: "danger", medium: "warning", low: "info" };
 
-export function AIInsightCard({ insight }: { insight: AIInsight }) {
+export function AIInsightCard({ insight, onAction }: { insight: AIInsight; onAction?: (insight: AIInsight) => void }) {
   return (
     <Surface hover className="group p-4">
       <div className="flex items-start gap-3">
@@ -71,7 +71,11 @@ export function AIInsightCard({ insight }: { insight: AIInsight }) {
             </StatusPill>
           </div>
           <p className="mt-1 text-xs leading-relaxed text-eoc-fg2">{insight.detail}</p>
-          <button className="mt-3 text-xs font-medium text-eoc-accent transition-colors hover:text-eoc-fg">
+          <button
+            type="button"
+            onClick={() => onAction?.(insight)}
+            className="mt-3 text-xs font-medium text-eoc-accent transition-colors hover:text-eoc-fg"
+          >
             {insight.action} →
           </button>
         </div>

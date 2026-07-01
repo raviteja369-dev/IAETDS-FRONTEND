@@ -2,31 +2,32 @@
 
 import * as React from "react";
 import { Download, Search } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader, EButton } from "@/components/eoc/page-header";
 import { SectionHeader, StatusPill, Surface, type Tone } from "@/components/eoc/primitives";
-import { activity } from "@/lib/eoc/data";
+import { downloadText } from "@/lib/eoc/export";
+import { selectAuditEvents } from "@/lib/eoc/selectors";
+import { useEocStore } from "@/lib/eoc/store";
 import { cn } from "@/lib/utils";
 
-const extended = [
-  ...activity,
-  { id: "x1", actor: "Diya Sharma", action: "exported dataset from", target: "Insight Analytics", category: "system" as const, at: "7h ago" },
-  { id: "x2", actor: "System", action: "rotated API key for", target: "Stripe integration", category: "security" as const, at: "8h ago" },
-  { id: "x3", actor: "Kabir Singh", action: "downloaded invoice", target: "INV-2026-0612", category: "billing" as const, at: "Yesterday" },
-  { id: "x4", actor: "Meera Iyer", action: "updated role for", target: "Vivaan Rao", category: "access" as const, at: "Yesterday" },
-  { id: "x5", actor: "Auto-Scaler", action: "scaled down", target: "Beacon Marketing", category: "system" as const, at: "2d ago" },
-];
-
 const catTone: Record<string, Tone> = { deploy: "info", security: "danger", billing: "success", maintenance: "warning", access: "info", system: "neutral" };
-const FILTERS = ["all", "security", "billing", "access", "system", "deploy"] as const;
+const FILTERS = ["all", "security", "billing", "access", "system", "deploy", "maintenance"] as const;
 
 export default function AuditPage() {
   const [filter, setFilter] = React.useState<(typeof FILTERS)[number]>("all");
   const [query, setQuery] = React.useState("");
-  const rows = extended.filter((e) => {
+  const auditEvents = useEocStore(selectAuditEvents);
+  const rows = auditEvents.filter((e) => {
     const mc = filter === "all" || e.category === filter;
     const mq = !query || `${e.actor} ${e.action} ${e.target}`.toLowerCase().includes(query.toLowerCase());
     return mc && mq;
   });
+
+  const exportLogs = () => {
+    const csv = ["actor,action,target,category,at", ...rows.map((e) => `"${e.actor}","${e.action}","${e.target}","${e.category}","${e.at}"`)].join("\n");
+    downloadText(`audit-logs-${Date.now()}.csv`, csv, "text/csv");
+    toast.success("Audit logs exported", { description: `${rows.length} events downloaded.` });
+  };
 
   return (
     <div className="space-y-6">
@@ -34,7 +35,7 @@ export default function AuditPage() {
         eyebrow="Compliance & governance"
         title="Audit Logs"
         description="An immutable, searchable timeline of every action across users, applications, security, and billing."
-        actions={<EButton variant="secondary"><Download className="h-4 w-4" /> Export logs</EButton>}
+        actions={<EButton variant="secondary" onClick={exportLogs}><Download className="h-4 w-4" /> Export logs</EButton>}
       />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -54,7 +55,9 @@ export default function AuditPage() {
         <div className="relative mt-5">
           <div className="absolute bottom-2 left-[7px] top-2 w-px bg-eoc-border" />
           <ul className="space-y-5">
-            {rows.map((e) => (
+            {rows.length === 0 ? (
+              <li className="pl-6 text-sm text-eoc-muted">No audit events match your filters.</li>
+            ) : rows.map((e) => (
               <li key={e.id} className="relative flex items-start gap-4 pl-6">
                 <span className={cn("absolute left-0 top-1 h-3.5 w-3.5 rounded-full border-2 border-eoc-card", {
                   "bg-eoc-info": catTone[e.category] === "info",
@@ -64,11 +67,10 @@ export default function AuditPage() {
                   "bg-eoc-muted": catTone[e.category] === "neutral",
                 })} />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-eoc-fg2">
-                    <span className="font-medium text-eoc-fg">{e.actor}</span> {e.action}{" "}
-                    <span className="font-medium text-eoc-fg">{e.target}</span>
+                  <p className="text-sm text-eoc-fg">
+                    <span className="font-medium">{e.actor}</span> {e.action} <span className="text-eoc-fg2">{e.target}</span>
                   </p>
-                  <p className="mt-0.5 text-[11px] text-eoc-muted">{e.at}</p>
+                  <p className="mt-1 text-[11px] text-eoc-muted">{e.at}</p>
                 </div>
                 <StatusPill tone={catTone[e.category]}>{e.category}</StatusPill>
               </li>

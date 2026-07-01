@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { Plus, Workflow, Zap } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { PageHeader, EButton } from "@/components/eoc/page-header";
 import {
@@ -13,7 +15,9 @@ import {
 } from "@/components/eoc/primitives";
 import { BarSeries } from "@/components/eoc/charts";
 import { Modal, Field, TextInput } from "@/components/eoc/modal";
+import { selectFlowSuccessRate } from "@/lib/eoc/selectors";
 import { useEocStore } from "@/lib/eoc/store";
+import { workflowSchema, type WorkflowInput } from "@/lib/eoc/validation";
 
 const runSeries = Array.from({ length: 7 }, (_, i) => ({
   m: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][i],
@@ -26,6 +30,29 @@ export default function AutomationPage() {
   const addFlow = useEocStore((s) => s.addFlow);
   const toggleFlow = useEocStore((s) => s.toggleFlow);
   const runFlow = useEocStore((s) => s.runFlow);
+  const deleteFlow = useEocStore((s) => s.deleteFlow);
+  const successRate = selectFlowSuccessRate({ flows } as Parameters<typeof selectFlowSuccessRate>[0]);
+
+  const [open, setOpen] = React.useState(false);
+  const [submitting, setSubmitting] = React.useState(false);
+
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<WorkflowInput>({
+    resolver: zodResolver(workflowSchema),
+    defaultValues: { name: "", trigger: "" },
+  });
+
+  const onSubmit = handleSubmit((data) => {
+    setSubmitting(true);
+    const result = addFlow(data);
+    setSubmitting(false);
+    if (!result.ok) {
+      toast.error(result.error ?? "Could not create workflow");
+      return;
+    }
+    toast.success("Workflow created", { description: `${data.name} is now active.` });
+    reset();
+    setOpen(false);
+  });
 
   const toggle = (name: string) => {
     const flow = flows.find((f) => f.name === name);
@@ -34,25 +61,13 @@ export default function AutomationPage() {
   };
 
   const run = (name: string) => {
-    runFlow(name);
-    toast.success(`${name} executed`, { description: "Run completed successfully." });
-  };
-
-  const [open, setOpen] = React.useState(false);
-  const [name, setName] = React.useState("");
-  const [trigger, setTrigger] = React.useState("");
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim() || !trigger.trim()) {
-      toast.error("Please fill in all fields");
+    const flow = flows.find((f) => f.name === name);
+    if (flow?.status !== "active") {
+      toast.error("Activate the workflow before running it");
       return;
     }
-    addFlow({ name: name.trim(), trigger: trigger.trim() });
-    toast.success("Workflow created", { description: `${name.trim()} is now active.` });
-    setName("");
-    setTrigger("");
-    setOpen(false);
+    runFlow(name);
+    toast.success(`${name} executed`, { description: "Run completed successfully." });
   };
 
   return (
@@ -64,17 +79,17 @@ export default function AutomationPage() {
         actions={<EButton variant="primary" onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> New workflow</EButton>}
       />
 
-      <Modal open={open} onOpenChange={setOpen} title="New workflow" description="Define what triggers this workflow.">
-        <form onSubmit={submit} className="space-y-4 p-5">
-          <Field label="Workflow name" htmlFor="wf-name">
-            <TextInput id="wf-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Auto-scale on traffic spike" autoFocus />
+      <Modal open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset(); }} title="New workflow" description="Define what triggers this workflow.">
+        <form onSubmit={onSubmit} className="space-y-4 p-5">
+          <Field label="Workflow name" htmlFor="wf-name" error={errors.name?.message}>
+            <TextInput id="wf-name" {...register("name")} placeholder="e.g. Auto-scale on traffic spike" autoFocus />
           </Field>
-          <Field label="Trigger" htmlFor="wf-trigger" hint="The condition or event that starts this workflow.">
-            <TextInput id="wf-trigger" value={trigger} onChange={(e) => setTrigger(e.target.value)} placeholder="e.g. CPU > 75%" />
+          <Field label="Trigger" htmlFor="wf-trigger" hint="The condition or event that starts this workflow." error={errors.trigger?.message}>
+            <TextInput id="wf-trigger" {...register("trigger")} placeholder="e.g. CPU > 75%" />
           </Field>
           <div className="flex justify-end gap-2 pt-1">
             <EButton type="button" variant="secondary" onClick={() => setOpen(false)}>Cancel</EButton>
-            <EButton type="submit" variant="primary">Create workflow</EButton>
+            <EButton type="submit" variant="primary" disabled={submitting}>{submitting ? "Creating…" : "Create workflow"}</EButton>
           </div>
         </form>
       </Modal>
@@ -82,8 +97,8 @@ export default function AutomationPage() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat label="Active workflows" value={String(flows.filter((f) => f.status === "active").length)} tone="info" />
         <Stat label="Total workflows" value={String(flows.length)} tone="neutral" />
-        <Stat label="Success rate" value="99.2%" tone="success" />
-        <Stat label="Hours saved (mo)" value="1,180" tone="success" />
+        <Stat label="Success rate" value={`${successRate}%`} tone="success" />
+        <Stat label="Total runs" value={flows.reduce((s, f) => s + parseInt(f.runs.replace(/,/g, "") || "0", 10), 0).toLocaleString("en-IN")} tone="success" />
       </div>
 
       <Surface className="p-5">
@@ -115,6 +130,7 @@ export default function AutomationPage() {
               <div className="flex items-center gap-1.5">
                 <EButton size="sm" variant="secondary" onClick={() => run(f.name)}>Run</EButton>
                 <EButton size="sm" variant="ghost" onClick={() => toggle(f.name)}>{f.status === "active" ? "Pause" : "Activate"}</EButton>
+                <EButton size="sm" variant="ghost" className="text-eoc-danger" onClick={() => { deleteFlow(f.name); toast.success("Workflow deleted"); }}>Delete</EButton>
               </div>
             </div>
           ))}

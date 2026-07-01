@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { CheckCheck } from "lucide-react";
+import { CheckCheck, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader, EButton } from "@/components/eoc/page-header";
 import { Surface, StatusPill, type Tone } from "@/components/eoc/primitives";
 import { useEocStore } from "@/lib/eoc/store";
@@ -14,6 +15,7 @@ export default function NotificationsPage() {
   const items = useEocStore((s) => s.notifications);
   const markRead = useEocStore((s) => s.markRead);
   const markAllRead = useEocStore((s) => s.markAllRead);
+  const deleteNotification = useEocStore((s) => s.deleteNotification);
   const [filter, setFilter] = React.useState<(typeof FILTERS)[number]>("all");
 
   const filtered = items.filter((n) => {
@@ -38,7 +40,11 @@ export default function NotificationsPage() {
       </div>
 
       <div className="space-y-2.5">
-        {filtered.map((n) => (
+        {filtered.length === 0 ? (
+          <Surface className="p-8 text-center">
+            <p className="text-sm text-eoc-muted">No notifications match this filter.</p>
+          </Surface>
+        ) : filtered.map((n) => (
           <Surface
             key={n.id}
             hover
@@ -60,6 +66,17 @@ export default function NotificationsPage() {
               <p className="mt-1 text-[11px] text-eoc-muted">{n.at}</p>
             </div>
             <StatusPill tone={toneLabel[n.tone]}>{n.tone}</StatusPill>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteNotification(n.id);
+                toast.success("Notification removed");
+              }}
+              className="rounded-lg p-1.5 text-eoc-muted hover:bg-white/5 hover:text-eoc-danger"
+              aria-label="Delete notification"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
           </Surface>
         ))}
       </div>

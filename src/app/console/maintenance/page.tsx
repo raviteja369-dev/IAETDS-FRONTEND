@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { CalendarClock, Sparkles, Wrench } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { PageHeader, EButton } from "@/components/eoc/page-header";
 import {
@@ -12,9 +14,11 @@ import {
   type Tone,
 } from "@/components/eoc/primitives";
 import { AreaTrend } from "@/components/eoc/charts";
-import { componentHealth, healthSeries } from "@/lib/eoc/data";
-import { useEocStore } from "@/lib/eoc/store";
 import { Modal, Field, TextInput, SelectInput } from "@/components/eoc/modal";
+import { componentHealth, healthSeries } from "@/lib/eoc/data";
+import { downloadJson } from "@/lib/eoc/export";
+import { useEocStore } from "@/lib/eoc/store";
+import { maintenanceSchema, type MaintenanceInput } from "@/lib/eoc/validation";
 import { formatCurrency } from "@/lib/eoc/format";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +32,7 @@ export default function MaintenancePage() {
   const advanceTask = useEocStore((s) => s.advanceTask);
   const completeTask = useEocStore((s) => s.completeTask);
   const scheduleTask = useEocStore((s) => s.scheduleTask);
+  const cancelTask = useEocStore((s) => s.cancelTask);
 
   const tasks = maintenanceTasks.filter((t) =>
     tab === "all" ? true : tab === "predictive" ? t.type === "predictive" : t.status !== "completed",
@@ -36,26 +41,27 @@ export default function MaintenancePage() {
   const predictiveCount = maintenanceTasks.filter((t) => t.type === "predictive" && t.status !== "completed").length;
 
   const [open, setOpen] = React.useState(false);
-  const [title, setTitle] = React.useState("");
-  const [app, setApp] = React.useState("");
-  const [type, setType] = React.useState<"scheduled" | "predictive" | "patch" | "upgrade" | "backup">("scheduled");
-  const [risk, setRisk] = React.useState<"low" | "medium" | "high" | "critical">("low");
-  const [windowStr, setWindowStr] = React.useState("");
+  const [calendarOpen, setCalendarOpen] = React.useState(false);
+  const [submitting, setSubmitting] = React.useState(false);
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim() || !app.trim()) {
-      toast.error("Please fill in the task title and application");
-      return;
-    }
-    scheduleTask({ title: title.trim(), app: app.trim(), type, risk, window: windowStr.trim() || undefined });
-    toast.success("Maintenance scheduled", { description: `${title.trim()} added to the queue.` });
-    setTitle("");
-    setApp("");
-    setWindowStr("");
-    setType("scheduled");
-    setRisk("low");
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<MaintenanceInput>({
+    resolver: zodResolver(maintenanceSchema),
+    defaultValues: { title: "", app: "", type: "scheduled", risk: "low", window: "" },
+  });
+
+  const onSubmit = handleSubmit((data) => {
+    setSubmitting(true);
+    scheduleTask({ title: data.title, app: data.app, type: data.type, risk: data.risk, window: data.window || undefined });
+    setSubmitting(false);
+    toast.success("Maintenance scheduled", { description: `${data.title} added to the queue.` });
+    reset();
     setOpen(false);
+  });
+
+  const exportCalendar = () => {
+    const upcoming = maintenanceTasks.filter((t) => t.status !== "completed");
+    downloadJson(`maintenance-calendar-${Date.now()}.json`, upcoming);
+    toast.success("Calendar exported", { description: `${upcoming.length} scheduled windows downloaded.` });
   };
 
   return (
@@ -66,7 +72,7 @@ export default function MaintenancePage() {
         description="Predictive, scheduled, and automated maintenance with AI root-cause analysis — keep every capability healthy before issues surface."
         actions={
           <>
-            <EButton variant="secondary" onClick={() => toast.info("Maintenance calendar", { description: "All scheduled and predictive windows for the next 30 days." })}><CalendarClock className="h-4 w-4" /> Calendar</EButton>
+            <EButton variant="secondary" onClick={() => setCalendarOpen(true)}><CalendarClock className="h-4 w-4" /> Calendar</EButton>
             <EButton variant="primary" onClick={() => setOpen(true)}>
               <Wrench className="h-4 w-4" /> Schedule
             </EButton>
@@ -74,17 +80,17 @@ export default function MaintenancePage() {
         }
       />
 
-      <Modal open={open} onOpenChange={setOpen} title="Schedule maintenance" description="Plan a maintenance window for an application." width="max-w-lg">
-        <form onSubmit={submit} className="space-y-4 p-5">
-          <Field label="Task title" htmlFor="mt-title">
-            <TextInput id="mt-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Apply security patch 6.1.0" autoFocus />
+      <Modal open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset(); }} title="Schedule maintenance" description="Plan a maintenance window for an application." width="max-w-lg">
+        <form onSubmit={onSubmit} className="space-y-4 p-5">
+          <Field label="Task title" htmlFor="mt-title" error={errors.title?.message}>
+            <TextInput id="mt-title" {...register("title")} placeholder="e.g. Apply security patch 6.1.0" autoFocus />
           </Field>
-          <Field label="Application" htmlFor="mt-app">
-            <TextInput id="mt-app" value={app} onChange={(e) => setApp(e.target.value)} placeholder="e.g. Servora ITSM" />
+          <Field label="Application" htmlFor="mt-app" error={errors.app?.message}>
+            <TextInput id="mt-app" {...register("app")} placeholder="e.g. Servora ITSM" />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Type" htmlFor="mt-type">
-              <SelectInput id="mt-type" value={type} onChange={(e) => setType(e.target.value as typeof type)}>
+            <Field label="Type" htmlFor="mt-type" error={errors.type?.message}>
+              <SelectInput id="mt-type" {...register("type")}>
                 <option value="scheduled">Scheduled</option>
                 <option value="predictive">Predictive</option>
                 <option value="patch">Patch</option>
@@ -92,8 +98,8 @@ export default function MaintenancePage() {
                 <option value="backup">Backup</option>
               </SelectInput>
             </Field>
-            <Field label="Risk" htmlFor="mt-risk">
-              <SelectInput id="mt-risk" value={risk} onChange={(e) => setRisk(e.target.value as typeof risk)}>
+            <Field label="Risk" htmlFor="mt-risk" error={errors.risk?.message}>
+              <SelectInput id="mt-risk" {...register("risk")}>
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
@@ -102,13 +108,30 @@ export default function MaintenancePage() {
             </Field>
           </div>
           <Field label="Window" htmlFor="mt-window" hint="Optional. Defaults to today.">
-            <TextInput id="mt-window" value={windowStr} onChange={(e) => setWindowStr(e.target.value)} placeholder="e.g. Jul 04, 02:00–04:00" />
+            <TextInput id="mt-window" {...register("window")} placeholder="e.g. Jul 04, 02:00–04:00" />
           </Field>
           <div className="flex justify-end gap-2 pt-1">
             <EButton type="button" variant="secondary" onClick={() => setOpen(false)}>Cancel</EButton>
-            <EButton type="submit" variant="primary">Schedule</EButton>
+            <EButton type="submit" variant="primary" disabled={submitting}>{submitting ? "Scheduling…" : "Schedule"}</EButton>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={calendarOpen} onOpenChange={setCalendarOpen} title="Maintenance calendar" description="Upcoming scheduled and predictive windows.">
+        <div className="max-h-[360px] space-y-2 overflow-y-auto p-5">
+          {maintenanceTasks.filter((t) => t.status !== "completed").length === 0 ? (
+            <p className="py-6 text-center text-sm text-eoc-muted">No upcoming maintenance windows.</p>
+          ) : maintenanceTasks.filter((t) => t.status !== "completed").map((t) => (
+            <div key={t.id} className="rounded-xl border border-eoc-border bg-white/[0.02] p-3">
+              <p className="text-sm font-medium text-eoc-fg">{t.title}</p>
+              <p className="text-xs text-eoc-muted">{t.app} · {t.window} · {t.type}</p>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-end gap-2 border-t border-eoc-border p-4">
+          <EButton variant="secondary" onClick={exportCalendar}>Export</EButton>
+          <EButton variant="primary" onClick={() => setCalendarOpen(false)}>Close</EButton>
+        </div>
       </Modal>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -165,7 +188,9 @@ export default function MaintenancePage() {
             }
           />
           <div className="mt-4 space-y-3">
-            {tasks.map((t) => (
+            {tasks.length === 0 ? (
+              <p className="py-6 text-center text-sm text-eoc-muted">No maintenance tasks match this filter.</p>
+            ) : tasks.map((t) => (
               <div key={t.id} className="rounded-xl border border-eoc-border bg-white/[0.02] p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -194,6 +219,9 @@ export default function MaintenancePage() {
                       </EButton>
                       <EButton size="sm" variant="ghost" onClick={() => { completeTask(t.id); toast.success(`${t.title} completed`); }}>
                         Complete
+                      </EButton>
+                      <EButton size="sm" variant="ghost" className="text-eoc-danger" onClick={() => { cancelTask(t.id); toast.success("Maintenance cancelled"); }}>
+                        Cancel
                       </EButton>
                     </div>
                   )}

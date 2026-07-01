@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { flatNav, BASE } from "@/lib/eoc/nav";
-import { currentUser, workspaces } from "@/lib/eoc/data";
+import { currentUser } from "@/lib/eoc/data";
 import { selectUnreadCount, useEocStore } from "@/lib/eoc/store";
 import { StatusPill } from "../primitives";
 
@@ -33,7 +33,7 @@ export function Topbar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [activeWs, setActiveWs] = React.useState(workspaces[0]);
+  const settings = useEocStore((s) => s.settings);
   const notifications = useEocStore((s) => s.notifications);
   const markRead = useEocStore((s) => s.markRead);
   const markAllRead = useEocStore((s) => s.markAllRead);
@@ -56,28 +56,30 @@ export function Topbar({
       <DropdownMenu.Root>
         <DropdownMenu.Trigger className="flex items-center gap-2 rounded-lg border border-eoc-border bg-white/[0.03] px-2.5 py-1.5 text-sm text-eoc-fg transition-colors hover:bg-white/[0.07] focus:outline-none">
           <span className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-eoc-accent to-[#7C3AED] text-[10px] font-bold text-white">
-            {activeWs.name.slice(0, 2).toUpperCase()}
+            {settings.workspaceName.slice(0, 2).toUpperCase()}
           </span>
-          <span className="hidden max-w-[140px] truncate font-medium sm:block">{activeWs.name}</span>
+          <span className="hidden max-w-[140px] truncate font-medium sm:block">{settings.workspaceName}</span>
           <ChevronDown className="h-3.5 w-3.5 text-eoc-muted" />
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
           <DropdownMenu.Content className={menuCls} align="start" sideOffset={8}>
             <DropdownMenu.Label className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-eoc-muted">
-              Workspaces
+              Workspace
             </DropdownMenu.Label>
-            {workspaces.map((ws) => (
-              <DropdownMenu.Item key={ws.id} className={itemCls} onSelect={() => setActiveWs(ws)}>
-                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-white/5 text-[10px] font-bold text-eoc-fg2">
-                  {ws.name.slice(0, 2).toUpperCase()}
-                </span>
-                <div className="flex-1">
-                  <p className="text-eoc-fg">{ws.name}</p>
-                  <p className="text-[11px] text-eoc-muted">{ws.plan}</p>
-                </div>
-                {ws.id === activeWs.id && <Check className="h-4 w-4 text-eoc-accent" />}
-              </DropdownMenu.Item>
-            ))}
+            <DropdownMenu.Item className={itemCls} onSelect={() => router.push("/console/settings")}>
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-white/5 text-[10px] font-bold text-eoc-fg2">
+                {settings.workspaceName.slice(0, 2).toUpperCase()}
+              </span>
+              <div className="flex-1">
+                <p className="text-eoc-fg">{settings.workspaceName}</p>
+                <p className="text-[11px] text-eoc-muted">{settings.workspacePlan}</p>
+              </div>
+              <Check className="h-4 w-4 text-eoc-accent" />
+            </DropdownMenu.Item>
+            <DropdownMenu.Separator className="my-1 h-px bg-eoc-border" />
+            <DropdownMenu.Item className={itemCls} onSelect={() => router.push("/console/settings")}>
+              Workspace settings
+            </DropdownMenu.Item>
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
@@ -197,10 +199,10 @@ export function Topbar({
         <DropdownMenu.Portal>
           <DropdownMenu.Content className={menuCls} align="end" sideOffset={8}>
             <div className="border-b border-eoc-border px-2.5 py-2.5">
-              <p className="text-sm font-medium text-eoc-fg">{currentUser.name}</p>
-              <p className="text-xs text-eoc-muted">{currentUser.email}</p>
+              <p className="text-sm font-medium text-eoc-fg">{settings.profileName}</p>
+              <p className="text-xs text-eoc-muted">{settings.profileEmail}</p>
               <div className="mt-2">
-                <StatusPill tone="info">{currentUser.role}</StatusPill>
+                <StatusPill tone="info">{settings.profileRole}</StatusPill>
               </div>
             </div>
             {[

@@ -17,6 +17,7 @@ import {
 import { AreaTrend } from "@/components/eoc/charts";
 import { Modal, Field, TextInput, SelectInput } from "@/components/eoc/modal";
 import { costSeries, usageMetrics } from "@/lib/eoc/data";
+import { downloadJson } from "@/lib/eoc/export";
 import { useEocStore } from "@/lib/eoc/store";
 import { formatCurrency, formatNumber } from "@/lib/eoc/format";
 import { cn } from "@/lib/utils";
@@ -81,7 +82,16 @@ export default function BillingPage() {
   const outstanding = invoices.filter((i) => i.status !== "paid").reduce((sum, i) => sum + i.amount, 0);
 
   const handlePay = (id: string, number: string) => {
-    payInvoice(id);
+    if (paymentMethods.length === 0) {
+      toast.error("Add a payment method first", { description: "Save a UPI, card, or bank account before paying invoices." });
+      setPmOpen(true);
+      return;
+    }
+    const ok = payInvoice(id);
+    if (!ok) {
+      toast.error("Payment failed", { description: "This invoice may already be paid or is unavailable." });
+      return;
+    }
     toast.success(`${number} paid`, { description: "A receipt has been emailed to billing." });
   };
 
@@ -103,13 +113,39 @@ export default function BillingPage() {
       return;
     }
     const toWallet = payMode === "wallet";
-    makePayment({ amount, method: payMethod, purpose: payPurpose.trim(), toWallet });
+    if (!toWallet && payMethod === "Wallet" && walletBalance < amount) {
+      toast.error("Insufficient wallet balance", { description: `Available: ${formatCurrency(walletBalance, true)}` });
+      return;
+    }
+    const ok = makePayment({ amount, method: payMethod, purpose: payPurpose.trim(), toWallet });
+    if (!ok) {
+      toast.error("Payment could not be processed");
+      return;
+    }
     toast.success(toWallet ? "Funds added to wallet" : "Payment successful", {
       description: `${formatCurrency(amount)} · ${payMethod}`,
     });
     setPayAmount("");
     setPayPurpose("Wallet top-up");
     setPayOpen(false);
+  };
+
+  const exportStatements = () => {
+    downloadJson(`billing-statement-${Date.now()}.json`, {
+      walletBalance,
+      monthlySpend,
+      outstanding,
+      invoices,
+      transactions: transactions.slice(0, 50),
+      subscriptions,
+      paymentMethods: paymentMethods.map((p) => ({ type: p.type, label: p.label, addedAt: p.addedAt })),
+    });
+    toast.success("Statement downloaded", { description: "Billing summary exported as JSON." });
+  };
+
+  const downloadInvoice = (inv: (typeof invoices)[number]) => {
+    downloadJson(`${inv.number}.json`, inv);
+    toast.success(`${inv.number} downloaded`);
   };
 
   const [pmOpen, setPmOpen] = React.useState(false);
@@ -159,7 +195,7 @@ export default function BillingPage() {
         description="Subscriptions, usage-based billing, invoices and payment activity — a premium, trustworthy financial control center."
         actions={
           <>
-            <EButton variant="secondary" onClick={() => toast.success("Statement downloaded", { description: "Trailing 12 months exported as PDF." })}><Download className="h-4 w-4" /> Statements</EButton>
+            <EButton variant="secondary" onClick={exportStatements}><Download className="h-4 w-4" /> Statements</EButton>
             <EButton variant="secondary" onClick={() => setPmOpen(true)}><Plus className="h-4 w-4" /> Add payment method</EButton>
             <EButton variant="primary" onClick={() => setPayOpen(true)}><Wallet className="h-4 w-4" /> Make a payment</EButton>
           </>
@@ -357,7 +393,7 @@ export default function BillingPage() {
                   <Td><StatusPill tone={invTone[inv.status]}>{inv.status}</StatusPill></Td>
                   <Td className="text-right">
                     {inv.status === "paid" ? (
-                      <button onClick={() => toast.success(`${inv.number} downloaded`)} className="text-xs text-eoc-accent hover:text-eoc-fg">Download</button>
+                      <button onClick={() => downloadInvoice(inv)} className="text-xs text-eoc-accent hover:text-eoc-fg">Download</button>
                     ) : (
                       <button onClick={() => handlePay(inv.id, inv.number)} className="text-xs font-medium text-eoc-success hover:text-eoc-fg">Pay now</button>
                     )}

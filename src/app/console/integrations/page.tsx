@@ -26,7 +26,7 @@ export default function IntegrationsPage() {
         eyebrow="Connected ecosystem"
         title="Integrations"
         description={`${connected} active connections syncing data securely with your workspace. Browse and connect new tools in seconds.`}
-        actions={<EButton variant="primary" onClick={() => toast.info("Integration directory", { description: "Browse 200+ pre-built connectors." })}><Plus className="h-4 w-4" /> Browse all</EButton>}
+        actions={<EButton variant="primary" onClick={() => setQuery("")}><Plus className="h-4 w-4" /> Browse all</EButton>}
       />
 
       <div className="flex h-10 items-center gap-2 rounded-xl border border-eoc-border bg-white/[0.03] px-3 sm:max-w-md">
@@ -35,7 +35,9 @@ export default function IntegrationsPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {filtered.map((i) => {
+        {filtered.length === 0 ? (
+          <p className="col-span-full py-8 text-center text-sm text-eoc-muted">No integrations match your search.</p>
+        ) : filtered.map((i) => {
           const Icon = (Icons as unknown as Record<string, Icons.LucideIcon>)[i.icon] ?? Icons.Plug;
           return (
             <Surface key={i.name} hover className="flex items-center gap-3 p-4">
