@@ -5,12 +5,14 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import {
   accessMembers as seedMembers,
   applications as seedApplications,
+  currentUser,
   invoices as seedInvoices,
   maintenanceTasks as seedMaintenance,
   notifications as seedNotifications,
   securityFindings as seedSecurity,
   subscriptions as seedSubscriptions,
   transactions as seedTransactions,
+  workspace,
 } from "./data";
 import type {
   AccessMember,
@@ -41,9 +43,50 @@ export interface AutomationFlow {
 }
 
 export interface KnowledgeDoc {
+  id: string;
   title: string;
   author: string;
   at: string;
+}
+
+export interface AIAgent {
+  name: string;
+  model: string;
+  calls: string;
+  success: number;
+  status: string;
+}
+
+export interface Integration {
+  name: string;
+  icon: string;
+  accent: string;
+  category: string;
+  connected: boolean;
+}
+
+export interface StorageAddition {
+  id: string;
+  amount: number;
+  addedAt: string;
+}
+
+export interface WorkspaceSettings {
+  profileName: string;
+  profileEmail: string;
+  profileRole: string;
+  workspaceName: string;
+  workspacePlan: string;
+  workspaceRegion: string;
+  mfa: boolean;
+  sso: boolean;
+  sessionTimeout: boolean;
+  securityAlerts: boolean;
+  billingNotifications: boolean;
+  maintenanceNotifications: boolean;
+  productUpdates: boolean;
+  reducedMotion: boolean;
+  compactDensity: boolean;
 }
 
 const seedFlows: AutomationFlow[] = [
@@ -56,11 +99,53 @@ const seedFlows: AutomationFlow[] = [
 ];
 
 const seedDocs: KnowledgeDoc[] = [
-  { title: "Incident response runbook v4", author: "Meera Iyer", at: "2h ago" },
-  { title: "Q3 budget approval workflow", author: "Kabir Singh", at: "5h ago" },
-  { title: "Zero-trust access policy", author: "Riya Kapoor", at: "Yesterday" },
-  { title: "New hire IT provisioning", author: "People Ops", at: "2d ago" },
+  { id: "doc-1", title: "Incident response runbook v4", author: "Meera Iyer", at: "2h ago" },
+  { id: "doc-2", title: "Q3 budget approval workflow", author: "Kabir Singh", at: "5h ago" },
+  { id: "doc-3", title: "Zero-trust access policy", author: "Riya Kapoor", at: "Yesterday" },
+  { id: "doc-4", title: "New hire IT provisioning", author: "People Ops", at: "2d ago" },
 ];
+
+const seedAgents: AIAgent[] = [
+  { name: "Support Resolver", model: "GPT-4o", calls: "184k", success: 97, status: "active" },
+  { name: "Finance Analyst", model: "Claude 3.5", calls: "62k", success: 99, status: "active" },
+  { name: "Ops Copilot", model: "GPT-4o", calls: "210k", success: 98, status: "active" },
+  { name: "Security Triage", model: "Llama 3.1", calls: "41k", success: 95, status: "active" },
+  { name: "Docs Summarizer", model: "Claude 3.5", calls: "88k", success: 96, status: "idle" },
+  { name: "Lead Scorer", model: "GPT-4o-mini", calls: "133k", success: 94, status: "active" },
+];
+
+const seedIntegrations: Integration[] = [
+  { name: "Slack", icon: "MessageSquare", accent: "#A855F7", category: "Communication", connected: true },
+  { name: "GitHub", icon: "Github", accent: "#A1A1AA", category: "Development", connected: true },
+  { name: "Stripe", icon: "CreditCard", accent: "#4F7CFF", category: "Payments", connected: true },
+  { name: "Salesforce", icon: "Cloud", accent: "#3B82F6", category: "CRM", connected: true },
+  { name: "Jira", icon: "ListChecks", accent: "#4F7CFF", category: "Project", connected: false },
+  { name: "Google Workspace", icon: "Mail", accent: "#22C55E", category: "Productivity", connected: true },
+  { name: "Datadog", icon: "Activity", accent: "#A855F7", category: "Observability", connected: false },
+  { name: "Snowflake", icon: "Database", accent: "#3B82F6", category: "Data", connected: true },
+  { name: "PagerDuty", icon: "BellRing", accent: "#22C55E", category: "Incident", connected: false },
+  { name: "Zoom", icon: "Video", accent: "#3B82F6", category: "Communication", connected: false },
+  { name: "Okta", icon: "KeyRound", accent: "#4F7CFF", category: "Identity", connected: true },
+  { name: "HubSpot", icon: "Megaphone", accent: "#F59E0B", category: "Marketing", connected: false },
+];
+
+const defaultSettings: WorkspaceSettings = {
+  profileName: currentUser.name,
+  profileEmail: currentUser.email,
+  profileRole: currentUser.role,
+  workspaceName: workspace.name,
+  workspacePlan: workspace.plan,
+  workspaceRegion: workspace.region,
+  mfa: true,
+  sso: true,
+  sessionTimeout: false,
+  securityAlerts: true,
+  billingNotifications: true,
+  maintenanceNotifications: true,
+  productUpdates: false,
+  reducedMotion: false,
+  compactDensity: false,
+};
 
 function today(): string {
   return new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
@@ -100,6 +185,11 @@ interface EocState {
   flows: AutomationFlow[];
   members: AccessMember[];
   docs: KnowledgeDoc[];
+  agents: AIAgent[];
+  integrations: Integration[];
+  storageTotalTb: number;
+  storageAdditions: StorageAddition[];
+  settings: WorkspaceSettings;
 
   // ── Applications ──
   installApp: (mk: MarketplaceSeed) => { created: boolean; id: string };
@@ -138,7 +228,19 @@ interface EocState {
   setMemberStatus: (id: string, status: AccessMember["status"]) => void;
 
   // ── Knowledge ──
-  addDoc: (doc: KnowledgeDoc) => void;
+  addDoc: (doc: Omit<KnowledgeDoc, "id">) => void;
+
+  // ── AI Studio ──
+  addAgent: (agent: Pick<AIAgent, "name" | "model">) => void;
+
+  // ── Integrations ──
+  setIntegrationConnected: (name: string, connected: boolean) => void;
+
+  // ── Storage ──
+  addStorageCapacity: (amount: number) => void;
+
+  // ── Settings ──
+  updateSettings: (patch: Partial<WorkspaceSettings>) => void;
 }
 
 export const useEocStore = create<EocState>()(
@@ -156,6 +258,11 @@ export const useEocStore = create<EocState>()(
   flows: [...seedFlows],
   members: [...seedMembers],
   docs: [...seedDocs],
+  agents: [...seedAgents],
+  integrations: [...seedIntegrations],
+  storageTotalTb: 5,
+  storageAdditions: [],
+  settings: { ...defaultSettings },
 
   installApp: (mk) => {
     const existing = get().applications.find((a) => a.name === mk.name);
@@ -369,13 +476,50 @@ export const useEocStore = create<EocState>()(
   setMemberStatus: (id, status) =>
     set((s) => ({ members: s.members.map((m) => (m.id === id ? { ...m, status } : m)) })),
 
-  addDoc: (doc) => set((s) => ({ docs: [doc, ...s.docs] })),
+  addDoc: (doc) =>
+    set((s) => ({
+      docs: [{ id: `doc-${Date.now().toString(36)}`, ...doc }, ...s.docs],
+    })),
+
+  addAgent: (agent) =>
+    set((s) => ({
+      agents: [{ name: agent.name, model: agent.model, calls: "0", success: 100, status: "active" }, ...s.agents],
+    })),
+
+  setIntegrationConnected: (name, connected) =>
+    set((s) => ({
+      integrations: s.integrations.map((i) => (i.name === name ? { ...i, connected } : i)),
+    })),
+
+  addStorageCapacity: (amount) =>
+    set((s) => ({
+      storageTotalTb: s.storageTotalTb + amount,
+      storageAdditions: [
+        { id: `st-${Date.now().toString(36)}`, amount, addedAt: today() },
+        ...s.storageAdditions,
+      ],
+    })),
+
+  updateSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
     }),
     {
       name: "eoc-store",
-      version: 1,
+      version: 2,
       skipHydration: true,
       storage: createJSONStorage(() => localStorage),
+      migrate: (persisted, version) => {
+        const state = persisted as Record<string, unknown>;
+        if (version < 2) {
+          const docs = (state.docs as Array<Record<string, string>> | undefined) ?? [];
+          state.docs = docs.map((d, i) => ({ ...d, id: d.id ?? `doc-migrated-${i}` }));
+          if (!state.agents) state.agents = seedAgents;
+          if (!state.integrations) state.integrations = seedIntegrations;
+          if (!state.storageTotalTb) state.storageTotalTb = 5;
+          if (!state.storageAdditions) state.storageAdditions = [];
+          if (!state.settings) state.settings = defaultSettings;
+        }
+        return state as unknown as EocState;
+      },
       partialize: (s) => ({
         applications: s.applications,
         maintenanceTasks: s.maintenanceTasks,
@@ -389,6 +533,11 @@ export const useEocStore = create<EocState>()(
         flows: s.flows,
         members: s.members,
         docs: s.docs,
+        agents: s.agents,
+        integrations: s.integrations,
+        storageTotalTb: s.storageTotalTb,
+        storageAdditions: s.storageAdditions,
+        settings: s.settings,
       }),
     },
   ),

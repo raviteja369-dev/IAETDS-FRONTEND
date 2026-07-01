@@ -85,7 +85,7 @@ export default function KnowledgePage() {
         <SectionHeader title="Recently updated" />
         <ul className="mt-4 space-y-2.5">
           {recent.map((r) => (
-            <li key={r.title} className="flex items-center gap-3 rounded-xl border border-eoc-border bg-white/[0.02] p-3.5">
+            <li key={r.id} className="flex items-center gap-3 rounded-xl border border-eoc-border bg-white/[0.02] p-3.5">
               <FileText className="h-4 w-4 text-eoc-muted" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-eoc-fg">{r.title}</p>

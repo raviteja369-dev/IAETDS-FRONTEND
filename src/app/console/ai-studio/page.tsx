@@ -14,18 +14,8 @@ import {
 import { AreaTrend } from "@/components/eoc/charts";
 import { Modal, Field, TextInput, SelectInput } from "@/components/eoc/modal";
 import { costSeries } from "@/lib/eoc/data";
+import { useEocStore } from "@/lib/eoc/store";
 import { formatCurrency } from "@/lib/eoc/format";
-
-type Agent = { name: string; model: string; calls: string; success: number; status: string };
-
-const initialAgents: Agent[] = [
-  { name: "Support Resolver", model: "GPT-4o", calls: "184k", success: 97, status: "active" },
-  { name: "Finance Analyst", model: "Claude 3.5", calls: "62k", success: 99, status: "active" },
-  { name: "Ops Copilot", model: "GPT-4o", calls: "210k", success: 98, status: "active" },
-  { name: "Security Triage", model: "Llama 3.1", calls: "41k", success: 95, status: "active" },
-  { name: "Docs Summarizer", model: "Claude 3.5", calls: "88k", success: 96, status: "idle" },
-  { name: "Lead Scorer", model: "GPT-4o-mini", calls: "133k", success: 94, status: "active" },
-];
 
 const models = [
   { name: "GPT-4o", usage: 64, tokens: "1.2B" },
@@ -34,7 +24,10 @@ const models = [
 ];
 
 export default function AIStudioPage() {
-  const [agents, setAgents] = React.useState<Agent[]>(initialAgents);
+  const agents = useEocStore((s) => s.agents);
+  const addAgent = useEocStore((s) => s.addAgent);
+  const activeCount = agents.filter((a) => a.status === "active").length;
+
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState("");
   const [model, setModel] = React.useState("GPT-4o");
@@ -45,7 +38,7 @@ export default function AIStudioPage() {
       toast.error("Please enter an agent name");
       return;
     }
-    setAgents((prev) => [{ name: name.trim(), model, calls: "0", success: 100, status: "active" }, ...prev]);
+    addAgent({ name: name.trim(), model });
     toast.success("Agent created", { description: `${name.trim()} (${model}) is now active.` });
     setName("");
     setModel("GPT-4o");
@@ -87,9 +80,9 @@ export default function AIStudioPage() {
       </Modal>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat label="Active agents" value="9" />
-        <Stat label="Requests (30d)" value="8.4M" />
-        <Stat label="Avg success" value="97.1%" />
+        <Stat label="Active agents" value={String(activeCount)} />
+        <Stat label="Total agents" value={String(agents.length)} />
+        <Stat label="Avg success" value={agents.length ? `${Math.round(agents.reduce((s, a) => s + a.success, 0) / agents.length)}%` : "—"} />
         <Stat label="AI spend (mo)" value="₹6,300" />
       </div>
 

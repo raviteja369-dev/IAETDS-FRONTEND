@@ -6,33 +6,17 @@ import { Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, EButton } from "@/components/eoc/page-header";
 import { IconTile, StatusPill, Surface } from "@/components/eoc/primitives";
-import { cn } from "@/lib/utils";
-
-type Integration = { name: string; icon: string; accent: string; category: string; connected: boolean };
-
-const initialIntegrations: Integration[] = [
-  { name: "Slack", icon: "MessageSquare", accent: "#A855F7", category: "Communication", connected: true },
-  { name: "GitHub", icon: "Github", accent: "#A1A1AA", category: "Development", connected: true },
-  { name: "Stripe", icon: "CreditCard", accent: "#4F7CFF", category: "Payments", connected: true },
-  { name: "Salesforce", icon: "Cloud", accent: "#3B82F6", category: "CRM", connected: true },
-  { name: "Jira", icon: "ListChecks", accent: "#4F7CFF", category: "Project", connected: false },
-  { name: "Google Workspace", icon: "Mail", accent: "#22C55E", category: "Productivity", connected: true },
-  { name: "Datadog", icon: "Activity", accent: "#A855F7", category: "Observability", connected: false },
-  { name: "Snowflake", icon: "Database", accent: "#3B82F6", category: "Data", connected: true },
-  { name: "PagerDuty", icon: "BellRing", accent: "#22C55E", category: "Incident", connected: false },
-  { name: "Zoom", icon: "Video", accent: "#3B82F6", category: "Communication", connected: false },
-  { name: "Okta", icon: "KeyRound", accent: "#4F7CFF", category: "Identity", connected: true },
-  { name: "HubSpot", icon: "Megaphone", accent: "#F59E0B", category: "Marketing", connected: false },
-];
+import { useEocStore } from "@/lib/eoc/store";
 
 export default function IntegrationsPage() {
   const [query, setQuery] = React.useState("");
-  const [integrations, setIntegrations] = React.useState<Integration[]>(initialIntegrations);
+  const integrations = useEocStore((s) => s.integrations);
+  const setIntegrationConnected = useEocStore((s) => s.setIntegrationConnected);
   const filtered = integrations.filter((i) => i.name.toLowerCase().includes(query.toLowerCase()) || i.category.toLowerCase().includes(query.toLowerCase()));
   const connected = integrations.filter((i) => i.connected).length;
 
   const setConnected = (name: string, value: boolean) => {
-    setIntegrations((prev) => prev.map((i) => (i.name === name ? { ...i, connected: value } : i)));
+    setIntegrationConnected(name, value);
     toast.success(`${name} ${value ? "connected" : "disconnected"}`);
   };
 

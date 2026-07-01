@@ -97,10 +97,10 @@ export default function IdentityPage() {
       </Modal>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat label="Members" value="1,284" />
-        <Stat label="MFA enabled" value="96%" tone="success" />
-        <Stat label="Pending requests" value="3" tone="warning" />
-        <Stat label="Service accounts" value="42" />
+        <Stat label="Members" value={members.length.toLocaleString("en-IN")} />
+        <Stat label="MFA enabled" value={`${Math.round((members.filter((m) => m.mfa).length / members.length) * 100)}%`} tone="success" />
+        <Stat label="Pending invites" value={String(members.filter((m) => m.status === "invited").length)} tone="warning" />
+        <Stat label="Suspended" value={String(members.filter((m) => m.status === "suspended").length)} />
       </div>
 
       <Surface className="p-5">

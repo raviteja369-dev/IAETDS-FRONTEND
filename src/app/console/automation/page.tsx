@@ -80,8 +80,8 @@ export default function AutomationPage() {
       </Modal>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat label="Active workflows" value="24" tone="info" />
-        <Stat label="Runs this week" value="9,142" tone="neutral" />
+        <Stat label="Active workflows" value={String(flows.filter((f) => f.status === "active").length)} tone="info" />
+        <Stat label="Total workflows" value={String(flows.length)} tone="neutral" />
         <Stat label="Success rate" value="99.2%" tone="success" />
         <Stat label="Hours saved (mo)" value="1,180" tone="success" />
       </div>

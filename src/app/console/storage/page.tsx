@@ -7,6 +7,7 @@ import { PageHeader, EButton } from "@/components/eoc/page-header";
 import { IconTile, ProgressBar, ScoreRing, SectionHeader, Surface } from "@/components/eoc/primitives";
 import { AreaTrend, DonutChart } from "@/components/eoc/charts";
 import { Modal, Field, SelectInput } from "@/components/eoc/modal";
+import { useEocStore } from "@/lib/eoc/store";
 
 const buckets = [
   { name: "Documents", icon: FileText, size: "1.4 TB", pct: 33, accent: "#4F7CFF" },
@@ -24,12 +25,25 @@ const growth = Array.from({ length: 12 }, (_, i) => ({
 }));
 
 export default function StoragePage() {
+  const storageTotalTb = useEocStore((s) => s.storageTotalTb);
+  const storageAdditions = useEocStore((s) => s.storageAdditions);
+  const addStorageCapacity = useEocStore((s) => s.addStorageCapacity);
+
+  const usedTb = 4.2;
+  const usedPct = Math.min(100, Math.round((usedTb / storageTotalTb) * 100));
+
   const [open, setOpen] = React.useState(false);
   const [amount, setAmount] = React.useState("1");
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success("Capacity added", { description: `${amount} TB provisioned to your workspace.` });
+    const tb = Number(amount);
+    if (!tb || tb <= 0) {
+      toast.error("Select a valid capacity amount");
+      return;
+    }
+    addStorageCapacity(tb);
+    toast.success("Capacity added", { description: `${tb} TB provisioned to your workspace.` });
     setOpen(false);
   };
 
@@ -61,10 +75,10 @@ export default function StoragePage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Surface className="flex items-center gap-5 p-6">
-          <ScoreRing value={84} label="Used" sub="4.2 / 5 TB" color="#4F7CFF" />
+          <ScoreRing value={usedPct} label="Used" sub={`${usedTb} / ${storageTotalTb} TB`} color="#4F7CFF" />
           <div>
             <p className="text-sm font-semibold text-eoc-fg">Capacity</p>
-            <p className="mt-1 text-xs text-eoc-fg2">Forecast to reach 4.8 TB next month</p>
+            <p className="mt-1 text-xs text-eoc-fg2">Total provisioned: {storageTotalTb} TB</p>
             <EButton size="sm" variant="secondary" className="mt-3" onClick={() => setOpen(true)}>Add capacity</EButton>
           </div>
         </Surface>
@@ -87,6 +101,20 @@ export default function StoragePage() {
           </div>
         </Surface>
       </div>
+
+      {storageAdditions.length > 0 && (
+        <Surface className="p-5">
+          <SectionHeader title="Capacity additions" description="Recently provisioned storage" />
+          <ul className="mt-4 space-y-2">
+            {storageAdditions.map((a) => (
+              <li key={a.id} className="flex items-center justify-between rounded-xl border border-eoc-border bg-white/[0.02] px-4 py-3 text-sm">
+                <span className="font-medium text-eoc-fg">+{a.amount} TB</span>
+                <span className="text-xs text-eoc-muted">Added {a.addedAt}</span>
+              </li>
+            ))}
+          </ul>
+        </Surface>
+      )}
 
       <Surface className="p-5">
         <SectionHeader title="Storage cost trend" description="Trailing 12 months (₹K/mo)" />
